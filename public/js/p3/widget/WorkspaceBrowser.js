@@ -436,6 +436,7 @@ define([
 				tooltip: "Show hidden folders/files"
 			}, function(selection){
 				window.App.showHiddenFiles = !window.App.showHiddenFiles;
+				self.activePanel.set('showHiddenFiles', window.App.showHiddenFiles);
 
 				// change icon/text based on state
 				var icon = query('[rel="ShowHidden"] .fa', this.domNode)[0],
@@ -448,8 +449,6 @@ define([
 					domAttr.set(text, "textContent", "HIDE HIDDEN");
 				else
 					domAttr.set(text, "textContent", "SHOW HIDDEN");
-
-				Topic.publish("/refreshWorkspace", {});
 			}, false);
 
 			var addWSBtn = this.browserHeader.addAction("CreateWorkspace", "fa icon-add-workspace fa-2x", {
@@ -566,10 +565,10 @@ define([
 				multiple: true,
 				validTypes: ["*"],
 				validContainerTypes: ["experiment_group"],
-				tooltip: "Copy selection to a new or existing group"
+				tooltip: "Add selection to a new or existing group"
 			}, function(selection, containerWidget){
 				// console.log("Add Items to Group", selection);
-				var dlg = new Dialog({title: "Copy Selection to Group"});
+				var dlg = new Dialog({title: "Add selected items to group"});
 				var stg = new SelectionToGroup({
 					selection: selection,
 					type: containerWidget.containerType,
