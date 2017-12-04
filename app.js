@@ -98,7 +98,6 @@ app.use(function(req, res, next){
 		homologyServiceURL: config.get("homologyServiceURL"),
 		genomedistanceServiceURL: config.get("genomedistanceServiceURL"),
 		compareregionServiceURL: config.get("compareregionServiceURL"),
-		pagesServiceURL: config.get("pagesServiceURL"),
 		docsServiceURL: config.get("docsServiceURL"),
 		enableDevTools: config.get("enableDevTools"),
 		accountURL: config.get("accountURL"),
@@ -163,6 +162,11 @@ app.use("/patric/images", express.static(path.join(__dirname, "public/patric/ima
 		res.setHeader("Expires", d.toGMTString());
 	}
 }));
+app.use("/public/pdfs/", [
+	function(req, res, next){
+		res.redirect('https://docs.patricbrc.org/tutorial/')
+	}
+])
 app.use("/patric/", express.static(path.join(__dirname, 'public/patric/')));
 app.use("/public/", express.static(path.join(__dirname, 'public/')));
 app.use('/', routes);
