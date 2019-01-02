@@ -1,12 +1,12 @@
 define([
-  'dojo/_base/declare', 'dijit/_WidgetBase', 'dojo/on', 'dojo/_base/lang',  'dojo/query',
+  'dojo/_base/declare', 'dojo/on', 'dojo/_base/lang',  'dojo/query',
   'dojo/dom-class', 'dojo/dom-attr', 'dojo/dom-construct', './JobsGrid', './JobContainerActionBar',
-  'dojo/_base/Deferred', 'dojo/dom-geometry', '../JobManager',
+  'dojo/_base/Deferred', '../JobManager', './Confirmation',
   'dojo/topic', 'dijit/layout/BorderContainer', './ActionBar', './ItemDetailPanel'
 ], function (
-  declare, WidgetBase, on, lang, query,
+  declare, on, lang, query,
   domClass, domAttr, domConstr, JobsGrid, JobContainerActionBar,
-  Deferred, domGeometry, JobManager,
+  Deferred, JobManager, Confirmation,
   Topic, BorderContainer, ActionBar, ItemDetailPanel
 ) {
   return declare([BorderContainer], {
@@ -14,6 +14,7 @@ define([
     path: '/',
 
     listJobs: function () {
+      var _self = this;
       return Deferred.when(JobManager.getJobs(), function (res) {
         return res;
       }, function (err) {
@@ -27,7 +28,7 @@ define([
     },
 
     showError: function (err) {
-      var n = domConstr.create('div', {
+      domConstr.create('div', {
         style: {
           position: 'relative',
           zIndex: 999,
@@ -92,6 +93,36 @@ define([
         },
         false
       ], [
+        'KillJob',
+        'MultiButton fa icon-ban fa-2x',
+        {
+          label: 'KILL JOB',
+          validTypes: ['*'],
+          multiple: false,
+          tooltip: 'Kill (Cancel) Selected Job',
+          validContainerTypes: ['*']
+        },
+        function (selection) {
+          var sel = selection[0],
+            id = sel.id;
+
+          var conf = 'Are you sure you want to terminate this ' + sel.app + ' job?<br><br>' +
+                     '<b>Job ID</b>: ' + id + '<br><br>';
+
+          var dlg = new Confirmation({
+            title: 'Kill Job',
+            content: conf,
+            style: { width: '375px' },
+            onConfirm: function (evt) {
+              JobManager.killJob(id);
+            }
+          });
+          dlg.startup();
+          dlg.show();
+
+        },
+        false
+      ], [
         'ReportIssue',
         'MultiButton fa icon-commenting-o fa-2x',
         {
@@ -104,15 +135,18 @@ define([
         function (selection) {
           var sel = selection[0];
 
+          var descriptRequired = sel.status !== 'failed';
+
           try {
             var content =
-              '\n[Please feel free to add any additional information regarding this issue here.]\n\n\n' +
+              (descriptRequired ? '' :
+                '\n[Please feel free to add any additional information regarding this issue here.]\n\n\n') +
               '********************** JOB INFO *************************\n\n' +
               'Job ID: ' + sel.id + '\n' +
               'Job Status: ' + sel.status + '\n' +
               'App Name: ' + sel.app + '\n\n' +
-              'Stdout: ' + window.App.serviceAPI + '/task_info/' + sel.id + '/stdout' + '\n' +
-              'Stderr: ' + window.App.serviceAPI + '/task_info/' + sel.id + '/stderr' + '\n\n' +
+              'Stdout: ' + window.App.serviceAPI + '/task_info/' + sel.id + '/stdout\n' +
+              'Stderr: ' + window.App.serviceAPI + '/task_info/' + sel.id + '/stderr\n\n' +
               'Submit Time: ' + sel.submit_time + '\n' +
               'Start Time: ' + sel.submit_time + '\n' +
               'Completed Time: ' + sel.submit_time + '\n\n' +
@@ -128,7 +162,9 @@ define([
             type: 'reportProblem',
             params: {
               issueText: content,
-              issueSubject: 'Reporting Issue with ' + sel.app
+              issueSubject: 'Reporting Issue with ' + sel.app,
+              jobDescriptRequired: descriptRequired,
+              jobStatus: sel.status
             }
           });
         },
@@ -175,6 +211,13 @@ define([
 
       this.setupActions();
 
+      this.grid.on('ItemDblClick', lang.hitch(this, function (evt) {
+        // console.log('JobManager.ItemDblClick', evt);
+        if (evt.selected) {
+          Topic.publish('/navigate', { href: '/workspace' + evt.selected.parameters.output_path + '/' + evt.selected.parameters.output_file });
+        }
+      }));
+
       this.grid.on('select', lang.hitch(this, function (evt) {
         var sel = Object.keys(evt.selected).map(lang.hitch(this, function (rownum) {
           var d = evt.grid.row(rownum).data;
@@ -220,8 +263,15 @@ define([
       // listen for filtering
       Topic.subscribe('/JobFilter', function (filters) {
         // remove any non-specific filter states
-        if (filters.app == 'all') delete filters.app;
+        if (filters.app === 'all') delete filters.app;
         if (!filters.status) delete filters.status;
+
+        // need to filter on all possible AWE-defined statuses
+        if (filters.status === 'queued') {
+          filters.status = new RegExp('queued|init|pending');
+        } else if (filters.status === 'failed') {
+          filters.status = new RegExp('failed|deleted');
+        }
 
         _self.grid.set('query', filters);
       });

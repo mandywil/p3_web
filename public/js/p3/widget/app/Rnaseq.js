@@ -4,32 +4,38 @@ define([
   'dojo/text!./templates/Rnaseq.html', './AppBase', 'dojo/dom-construct',
   'dojo/_base/Deferred', 'dojo/aspect', 'dojo/_base/lang', 'dojo/domReady!', 'dijit/form/NumberTextBox',
   'dojo/query', 'dojo/dom', 'dijit/popup', 'dijit/Tooltip', 'dijit/Dialog', 'dijit/TooltipDialog',
-  'dojo/NodeList-traverse', '../../WorkspaceManager', 'dojo/store/Memory', 'dojox/widget/Standby'
+  'dojo/NodeList-traverse', '../../WorkspaceManager', 'dojo/store/Memory', 'dojox/widget/Standby',
+  'dojox/xml/parser', 'dojo/request'
 ], function (
   declare, WidgetBase, on,
   domClass,
   Template, AppBase, domConstruct,
   Deferred, aspect, lang, domReady, NumberTextBox,
   query, dom, popup, Tooltip, Dialog, TooltipDialog,
-  children, WorkspaceManager, Memory, Standby
+  children, WorkspaceManager, Memory, Standby,
+  xmlParser, xhr
 ) {
   return declare([AppBase], {
     baseClass: 'App Assembly',
     templateString: Template,
     applicationName: 'RNASeq',
+    requireAuth: true,
+    applicationLabel: 'RNA-Seq Analysis',
+    applicationDescription: 'The RNA-Seq Analysis Service provides services for aligning, assembling, and testing differential expression on RNA-Seq data.',
     applicationHelp: 'user_guides/services/rna_seq_analysis_service.html',
     tutorialLink: 'tutorial/rna_seq_submission/submitting_rna_seq_job.html',
     pageTitle: 'RNA-Seq Analysis',
     libraryData: null,
     defaultPath: '',
-    startingRows: 11,
+    startingRows: 18,
     initConditions: 5,
     initContrasts: 8,
     maxConditions: 10,
     maxContrasts: 100,
     conditionStore: null,
+    srrValidationUrl: 'https://www.ebi.ac.uk/ena/data/view/{0}&display=xml',
     hostGenomes: {
-      9606.33:'', 6239.6:'', 7955.5:'', 7227.4:'', 9031.4:'', 9544.2:'', 10090.24:'', 9669.1:'', 10116.5:'', 9823.5:''
+      9606.33: '', 6239.6: '', 7955.5: '', 7227.4: '', 9031.4: '', 9544.2: '', 10090.24: '', 9669.1: '', 10116.5: '', 9823.5: ''
     },
 
     listValues: function (obj) {
@@ -53,8 +59,10 @@ define([
       this.paramToAttachPt = { output_path: null, output_file: null, recipe: null };
       this.singleToAttachPt = { read: null };
       this.singleConditionToAttachPt = { read: null, condition_single: ['condition'] };
+      this.srrToAttachPt = { srr_accession: null };
+      this.srrConditionToAttachPt = { srr_accession: null, condition_srr: ['condition'] };
       this.conditionToAttachPt = { condition: ['condition', 'id', 'label'] };
-      this.contrastToAttachPt = { contrast_cd1: ['condition1'], contrast_cd2:['condition2'] };
+      this.contrastToAttachPt = { contrast_cd1: ['condition1'], contrast_cd2: ['condition2'] };
       this.targetGenomeID = '';
       this.shapes = ['icon-square', 'icon-circle'];
       this.colors = ['blue', 'green', 'red', 'purple', 'orange'];
@@ -63,12 +71,15 @@ define([
       this.conditionStore = new Memory({ data: [] });
       this.contrastStore = new Memory({ data: [] });
       this.activeConditionStore = new Memory({ data: [] }); // used to store conditions with more than 0 libraries assigned
-      this.libraryStore = new Memory({ data: [], idProperty:'id' });
+      this.libraryStore = new Memory({ data: [], idProperty: 'id' });
       this.libraryID = 0;
     },
 
     startup: function () {
       if (this._started) {
+        return;
+      }
+      if (this.requireAuth && (window.App.authorizationToken === null || window.App.authorizationToken === undefined)) {
         return;
       }
       this.inherited(arguments);
@@ -77,7 +88,7 @@ define([
       _self.output_path.set('value', _self.defaultPath);
 
       // create help dialog for infobutton's with infobuttoninfo div's
-      this.emptyTable(this.libsTable, this.startingRows, 3);
+      this.emptyTable(this.libsTable, this.startingRows, 4);
       this.emptyTable(this.condTable, this.initConditions, 3);
       this.emptyTable(this.contrastTable, this.initContrasts, 5);
 
@@ -89,12 +100,13 @@ define([
             (this._isEmpty(value) || this.parse(value, constraints) !== undefined); // Boolean
         });
       }));
-      var handle = on(this.group_switch, 'click', lang.hitch(this, function (evt) {
+      on(this.group_switch, 'click', lang.hitch(this, function (evt) {
         this.exp_design.checked = !this.exp_design.checked;
         this.exp_design.value = this.exp_design.checked ? 'on' : 'off';
         this.onDesignToggle();
       }));
       this.condition_single.labelFunc = this.showConditionLabels;
+      this.condition_srr.labelFunc = this.showConditionLabels;
       this.condition_paired.labelFunc = this.showConditionLabels;
       this.contrast_cd1.labelFunc = this.showConditionLabels;
       this.contrast_cd2.labelFunc = this.showConditionLabels;
@@ -109,60 +121,172 @@ define([
     },
 
     onDesignToggle: function () {
-      var disable = !this.exp_design.checked;
-      this.condition.set('disabled', disable);
-      this.condition_single.set('disabled', disable);
-      this.condition_paired.set('disabled', disable);
-      this.contrast_cd1.set('disabled', disable);
-      this.contrast_cd2.set('disabled', disable);
-      if (disable) {
+      var design_status = !this.exp_design.checked;
+      this.condition.set('disabled', design_status);
+      this.condition_single.set('disabled', design_status);
+      this.condition_srr.set('disabled', design_status);
+      this.condition_paired.set('disabled', design_status);
+      this.contrast_cd1.set('disabled', design_status);
+      this.contrast_cd2.set('disabled', design_status);
+      if (design_status) {
         // this.block_condition.show();
         this.numCondWidget.set('value', Number(1));
-        this.destroyLib(lrec = {}, query_id = true, id_type = 'design');
-        dojo.addClass(this.condTable, 'disabled');
+        this.destroyLib({}, true, 'design');
+        domClass.add(this.condTable, 'disabled');
         this.numContrastWidget.set('value', Number(1));
-        this.destroyContrastRow(query_id = true, id_type = 'contrast');
-        dojo.addClass(this.contrastTable, 'disabled');
+        this.destroyContrastRow(true, 'contrast');
+        domClass.add(this.contrastTable, 'disabled');
       }
       else {
         // this.block_condition.hide();
         this.numCondWidget.set('value', Number(this.addedCond.counter));
-        this.destroyLib(lrec = {}, query_id = false, id_type = 'design');
-        dojo.removeClass(this.condTable, 'disabled');
+        this.destroyLib({}, false, 'design');
+        domClass.remove(this.condTable, 'disabled');
         this.numContrastWidget.set('value', Number(this.addedContrast.counter));
-        this.destroyContrastRow(query_id = false, id_type = 'contrast');
+        this.destroyContrastRow(false, 'contrast');
         if (this.contrastEnabled) {
-          dojo.removeClass(this.contrastTable, 'disabled');
+          domClass.remove(this.contrastTable, 'disabled');
         }
       }
     },
 
+    onAddSRR: function () {
+      console.log('Create New Row', domConstruct);
+      var toIngest = this.exp_design.checked ? this.srrConditionToAttachPt : this.srrToAttachPt;
+      var accession = this.srr_accession.get('value');
+      // console.log("updateSRR", accession, accession.substr(0, 3))
+      // var prefixList = ['SRR', 'ERR']
+      // if(prefixList.indexOf(accession.substr(0, 3)) == -1){
+      //   this.srr_accession.set("state", "Error")
+      //   return false;
+      // }
+
+      // TODO: validate and populate title
+      // SRR5121082
+      this.srr_accession.set('disabled', true);
+      xhr.get(lang.replace(this.srrValidationUrl, [accession]), {})
+        .then(lang.hitch(this, function (xml_resp) {
+          var resp = xmlParser.parse(xml_resp).documentElement;
+          this.srr_accession.set('disabled', false);
+          try {
+            var title = resp.children[0].childNodes[3].innerHTML;
+
+            this.srr_accession.set('state', '');
+            var lrec = { type: 'srr_accession', title: title };
+
+            var chkPassed = this.ingestAttachPoints(toIngest, lrec);
+            if (chkPassed) {
+              var infoLabels = {
+                title: { label: 'Title', value: 1 }
+              };
+              var tr = this.libsTable.insertRow(0);
+              lrec.row = tr;
+              // this code needs to be refactored to use addLibraryRow like the Assembly app
+              var td = domConstruct.create('td', { 'class': 'textcol srrdata', innerHTML: '' }, tr);
+              td.libRecord = lrec;
+              td.innerHTML = "<div class='libraryrow'>" + this.makeLibraryName('srr_accession') + '</div>';
+              this.addLibraryInfo(lrec, infoLabels, tr);
+              var advPairInfo = [];
+              if (lrec.condition) {
+                advPairInfo.push('Condition:' + lrec.condition);
+              }
+              if (advPairInfo.length) {
+                lrec.design = true;
+                var condition_icon = this.getConditionIcon(lrec.condition);
+                var tdinfo = domConstruct.create('td', { 'class': 'iconcol', innerHTML: condition_icon }, tr);
+                new Tooltip({
+                  connectId: [tdinfo],
+                  label: advPairInfo.join('</br>')
+                });
+              }
+              else {
+                lrec.design = false;
+                var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+              }
+              var td2 = domConstruct.create('td', {
+                'class': 'iconcol',
+                innerHTML: "<i class='fa icon-x fa-1x' />"
+              }, tr);
+              if (this.addedLibs.counter < this.startingRows) {
+                this.libsTable.deleteRow(-1);
+              }
+              var handle = on(td2, 'click', lang.hitch(this, function (evt) {
+                this.destroyLib(lrec, lrec.id, 'id');
+              }));
+              lrec.handle = handle;
+              this.createLib(lrec);
+              this.increaseRows(this.libsTable, this.addedLibs, this.numlibs);
+            }
+          } catch (e) {
+            this.srr_accession.set('state', 'Error');
+            console.debug(e);
+          }
+        }));
+    },
+    addLibraryInfo: function (lrec, infoLabels, tr) {
+      var advInfo = [];
+      // fill out the html of the info mouse over
+      Object.keys(infoLabels).forEach(lang.hitch(this, function (key) {
+        if (lrec[key] && lrec[key] != 'false') {
+          if (infoLabels[key].value) {
+            advInfo.push(infoLabels[key].label + ':' + lrec[key]);
+          }
+          else {
+            advInfo.push(infoLabels[key].label);
+          }
+        }
+      }));
+      if (advInfo.length) {
+        var tdinfo = domConstruct.create('td', { innerHTML: "<i class='fa icon-info fa-1' />" }, tr);
+        var ihandle = new TooltipDialog({
+          content: advInfo.join('</br>'),
+          onMouseLeave: function () {
+            popup.close(ihandle);
+          }
+        });
+        on(tdinfo, 'mouseover', function () {
+          popup.open({
+            popup: ihandle,
+            around: tdinfo
+          });
+        });
+        on(tdinfo, 'mouseout', function () {
+          popup.close(ihandle);
+        });
+      }
+      else {
+        var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+      }
+    },
+
+    updateSRR: function () {
+    },
+
+
     emptyTable: function (target, rowLimit, colNum) {
-      for (i = 0; i < rowLimit; i++) {
+      for (var i = 0; i < rowLimit; i++) {
         var tr = target.insertRow(0);// domConstr.create("tr",{},this.libsTableBody);
-        for (j = 0; j < colNum; j++) {
+        for (var j = 0; j < colNum; j++) {
           domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
         }
       }
     },
 
     getValues: function () {
-      if (typeof String.prototype.startsWith != 'function') {
-        String.prototype.startsWith = function (str) {
-          return this.slice(0, str.length) == str;
-        };
-      }
       var assembly_values = {};
       var values = this.inherited(arguments);
       var pairedList = this.libraryStore.query({ type: 'paired' });
       var pairedAttrs = ['read1', 'read2'];
       var singleAttrs = ['read'];
+      var srrAttrs = ['srr_accession'];
       var condList = this.conditionStore.data;
       var contrastList = this.contrastStore.data;
       var singleList = this.libraryStore.query({ type: 'single' });
+      var srrList = this.libraryStore.query({ type: 'srr_accession' });
       var condLibs = [];
       var pairedLibs = [];
       var singleLibs = [];
+      var srrLibs = [];
       var contrastPairs = [];
       this.ingestAttachPoints(this.paramToAttachPt, assembly_values);
       // for (var k in values) {
@@ -170,7 +294,7 @@ define([
       //     assembly_values[k]=values[k];
       //   }
       // }
-      var combinedList = pairedList.concat(singleList);
+      var combinedList = pairedList.concat(singleList).concat(srrList);
       assembly_values.reference_genome_id = values.genome_name;
       if (this.exp_design.checked) {
         condList.forEach(function (condRecord) {
@@ -216,6 +340,19 @@ define([
       if (singleLibs.length) {
         assembly_values.single_end_libs = singleLibs;
       }
+      srrList.forEach(function (libRecord) {
+        var toAdd = {};
+        if ('condition' in libRecord && this.exp_design.checked) {
+          toAdd.condition = condLibs.indexOf(libRecord.condition) + 1;
+        }
+        srrAttrs.forEach(function (attr) {
+          toAdd[attr] = libRecord[attr];
+        });
+        srrLibs.push(toAdd);
+      }, this);
+      if (srrLibs.length) {
+        assembly_values.srr_libs = srrLibs;
+      }
       return assembly_values;
 
     },
@@ -224,7 +361,7 @@ define([
     ingestAttachPoints: function (input_pts, target, req) {
       req = typeof req !== 'undefined' ? req : true;
       var success = 1;
-      var prevalidate_ids = ['read1', 'read2', 'read', 'output_path', 'condition', 'condition_single', 'condition_paired'];
+      var prevalidate_ids = ['read1', 'read2', 'read', 'output_path', 'condition', 'condition_single', 'condition_paired', 'srr_accession', 'condition_srr'];
       target.id = this.makeStoreID(target.type);
       var duplicate = target.id in this.libraryStore.index;
       // For each named obj in input_pts get the attributes from the dojo attach point of the same name in the template
@@ -294,30 +431,34 @@ define([
       var label = item.condition + ' ' + item.icon;
       return label;
     },
-    makeLibraryName:function (mode) {
-      if (mode == 'paired') {
-        var fn = this.read1.searchBox.get('displayedValue');
-        var fn2 = this.read2.searchBox.get('displayedValue');
-        var maxName = 14;
-        if (fn.length > maxName) {
-          fn = fn.substr(0, (maxName / 2) - 2) + '...' + fn.substr((fn.length - (maxName / 2)) + 2);
-        }
-        if (fn2.length > maxName) {
-          fn2 = fn2.substr(0, (maxName / 2) - 2) + '...' + fn2.substr((fn2.length - (maxName / 2)) + 2);
-        }
-        return 'P(' + fn + ', ' + fn2 + ')';
+    makeLibraryName: function (mode) {
+      switch (mode) {
+        case 'paired':
+          var fn = this.read1.searchBox.get('displayedValue');
+          var fn2 = this.read2.searchBox.get('displayedValue');
+          var maxName = 14;
+          if (fn.length > maxName) {
+            fn = fn.substr(0, (maxName / 2) - 2) + '...' + fn.substr((fn.length - (maxName / 2)) + 2);
+          }
+          if (fn2.length > maxName) {
+            fn2 = fn2.substr(0, (maxName / 2) - 2) + '...' + fn2.substr((fn2.length - (maxName / 2)) + 2);
+          }
+          return 'P(' + fn + ', ' + fn2 + ')';
+        case 'single':
+          var fn = this.read.searchBox.get('displayedValue');
+          maxName = 24;
+          if (fn.length > maxName) {
+            fn = fn.substr(0, (maxName / 2) - 2) + '...' + fn.substr((fn.length - (maxName / 2)) + 2);
+          }
+          return 'S(' + fn + ')';
+        case 'srr_accession':
+          var name = this.srr_accession.get('value');
+          return '' + name;
+        default:
+          return '';
       }
-
-
-      var fn = this.read.searchBox.get('displayedValue');
-      maxName = 24;
-      if (fn.length > maxName) {
-        fn = fn.substr(0, (maxName / 2) - 2) + '...' + fn.substr((fn.length - (maxName / 2)) + 2);
-      }
-      return 'S(' + fn + ')';
-
     },
-    makeStoreID:function (mode) {
+    makeStoreID: function (mode) {
       if (mode == 'paired') {
         var fn = this.read1.searchBox.get('value');
         var fn2 = this.read2.searchBox.get('value');
@@ -329,6 +470,14 @@ define([
       }
       else if (mode == 'contrast') {
         var fn = this.contrast_cd1.get('value') + this.contrast_cd2.get('value');
+        return fn;
+      }
+      else if (mode == 'condition') {
+        var fn = this.condition.displayedValue;
+        return fn;
+      }
+      else if (mode == 'srr_accession') {
+        var fn = this.srr_accession.displayedValue;
         return fn;
       }
     },
@@ -343,7 +492,7 @@ define([
       }));
       // because its removing rows cells from array needs separate loop
       toDestroy.forEach(lang.hitch(this, function (id) {
-        this.destroyLib(lrec = {}, query_id = id, 'id');
+        this.destroyLib({}, id, 'id');
       }));
     },
 
@@ -381,13 +530,13 @@ define([
 
     onAddCondition: function () {
       console.log('Create New Row', domConstruct);
-      var lrec = { count:0 }; // initialized to the number of libraries assigned
+      var lrec = { count: 0, type: 'condition' }; // initialized to the number of libraries assigned
       var toIngest = this.conditionToAttachPt;
       var disable = !this.exp_design.checked;
       var chkPassed = this.ingestAttachPoints(toIngest, lrec);
       var conditionSize = this.conditionStore.data.length;
       if (this.addedCond.counter < this.maxConditions) {
-        this.updateConditionStore(record = lrec, remove = false);
+        this.updateConditionStore(lrec, false);
       }
       // make sure all necessary fields, not disabled, available condition slots, and checking conditionSize checks dups
       if (chkPassed && !disable && this.addedCond.counter < this.maxConditions && conditionSize < this.conditionStore.data.length) {
@@ -396,7 +545,7 @@ define([
         var td = domConstruct.create('td', { 'class': 'textcol conditiondata', innerHTML: '' }, tr);
         td.libRecord = lrec;
         td.innerHTML = "<div class='libraryrow'>" + this.makeConditionName(this.condition.get('displayedValue')) + '</div>';
-        var tdinfo = domConstruct.create('td', { 'class': 'iconcol', innerHTML: lrec.icon }, tr);
+        domConstruct.create('td', { 'class': 'iconcol', innerHTML: lrec.icon }, tr);
         var td2 = domConstruct.create('td', {
           'class': 'iconcol',
           innerHTML: "<i class='fa icon-x fa-1x' />"
@@ -408,17 +557,18 @@ define([
         var handle = on(td2, 'click', lang.hitch(this, function (evt) {
           console.log('Delete Row');
           domConstruct.destroy(tr);
-          this.destroyLib(lrec, query_id = lrec.condition, id_type = 'condition');
+          this.destroyLib(lrec, lrec.condition, 'condition');
           // this.destroyContrastRow(query_id = lrec["condition"]);
-          this.updateConditionStore(record = lrec, remove = true);
+          this.updateConditionStore(lrec, true);
           this.decreaseRows(this.condTable, this.addedCond, this.numCondWidget);
           if (this.addedCond.counter < this.maxConditions) {
             var ntr = this.condTable.insertRow(-1);
-            var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
           }
           this.condition_single.reset();
+          this.condition_srr.reset();
           this.condition_paired.reset();
           handle.remove();
         }));
@@ -436,7 +586,7 @@ define([
         // remove condition from data store
         toRemove.forEach(function (obj) {
           if (obj.libraries) {
-            libraries.forEach(function (lib_row) {
+            obj.libraries.forEach(function (lib_row) {
               lib_row.remove();
             });
           }
@@ -448,6 +598,7 @@ define([
       }
       this.condition_paired.set('store', this.conditionStore);
       this.condition_single.set('store', this.conditionStore);
+      this.condition_srr.set('store', this.conditionStore);
       this.contrast_cd1.set('store', this.activeConditionStore);
       this.contrast_cd2.set('store', this.activeConditionStore);
     },
@@ -462,7 +613,7 @@ define([
         // remove condition from data store
         toRemove.forEach(function (obj) {
           if (obj.contrasts) {
-            contrasts.forEach(function (contrast_row) {
+            obj.contrasts.forEach(function (contrast_row) {
               contrast_row.remove();
             });
           }
@@ -476,12 +627,12 @@ define([
 
     onAddContrast: function () {
       console.log('Create New Row', domConstruct);
-      var lrec = { type:'contrast' };
+      var lrec = { type: 'contrast' };
       var disable = !this.exp_design.checked;
       var chkPassed = this.ingestAttachPoints(this.contrastToAttachPt, lrec);
       var contrastSize = this.contrastStore.data.length;
       if (this.addedContrast.counter < this.maxContrasts) {
-        this.updateContrastStore(record = lrec, remove = false);
+        this.updateContrastStore(lrec, false);
       }
       // make sure all necessary fields, not disabled, available condition slots, and checking conditionSize checks dups
       if (chkPassed && !disable && this.addedContrast.counter < this.maxContrasts && contrastSize < this.contrastStore.data.length) {
@@ -494,11 +645,11 @@ define([
 
         var td_cd1 = domConstruct.create('td', { 'class': 'conditiondata', innerHTML: '' }, tr);
         td_cd1.innerHTML = "<div class='contrastrow'>" + this.makeConditionName(condition1) + '</div>';
-        var tdinfo1 = domConstruct.create('td', { 'class': 'iconcol', innerHTML: lrec.icon1 }, tr);
+        domConstruct.create('td', { 'class': 'iconcol', innerHTML: lrec.icon1 }, tr);
 
         var td_cd2 = domConstruct.create('td', { 'class': 'conditiondata', innerHTML: '' }, tr);
         td_cd2.innerHTML = "<div class='contrastrow'>" + this.makeConditionName(condition2) + '</div>';
-        var tdinfo2 = domConstruct.create('td', { 'class': 'iconcol', innerHTML: lrec.icon2 }, tr);
+        domConstruct.create('td', { 'class': 'iconcol', innerHTML: lrec.icon2 }, tr);
 
         var tdx = domConstruct.create('td', { 'class': 'iconcol', innerHTML: "<i class='fa icon-x fa-1x' />" }, tr);
         if (this.addedContrast.counter < this.initContrasts) {
@@ -508,18 +659,18 @@ define([
         var handle = on(tdx, 'click', lang.hitch(this, function (evt) {
           console.log('Delete Row');
           domConstruct.destroy(tr);
-          this.updateContrastStore(record = lrec, remove = true);
+          this.updateContrastStore(lrec, true);
           this.decreaseRows(this.contrastTable, this.addedContrast, this.numContrastWidget);
           if (this.addedContrast.counter < this.maxContrasts) {
             var ntr = this.condTable.insertRow(-1);
-            var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd4 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd5 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
           }
           handle.remove();
-          this.destroyContrastRow(query_id = lrec.contrast, id_type = 'contrast');
+          this.destroyContrastRow(lrec.contrast, 'contrast');
         }));
         this.increaseRows(this.contrastTable, this.addedContrast, this.numContrastWidget);
       }
@@ -529,7 +680,7 @@ define([
     createLib: function (lrec) {
       this.libraryStore.put(lrec);
       if (lrec.condition) {
-        var query_obj = { id:lrec.condition };
+        var query_obj = { id: lrec.condition };
         var toUpdate = this.conditionStore.query(query_obj);
         toUpdate.forEach(function (obj) {
           obj.count += 1;
@@ -541,7 +692,7 @@ define([
     destroyLib: function (lrec, query_id, id_type) {
       this.destroyLibRow(query_id, id_type);
       if (lrec.condition) {
-        var query_obj = { id:lrec.condition };
+        var query_obj = { id: lrec.condition };
         var toUpdate = this.conditionStore.query(query_obj);
         toUpdate.forEach(function (obj) {
           obj.count -= 1;
@@ -561,7 +712,7 @@ define([
         // var disableConditions = this.conditionStore.query({"count":0});
         var disableConditions = this.conditionStore.query(function (obj) { return obj.count == 0; });
         var enableConditions = this.conditionStore.query(function (obj) { return obj.count > 0; });
-        var newOptions = [];
+
         disableConditions.forEach(lang.hitch(this, function (obj) {
           // disable in contrast_cd widget
           this.activeConditionStore.remove(obj.id); // used to store conditions with more than 0 libraries assigned
@@ -579,7 +730,7 @@ define([
 
     onAddSingle: function () {
       console.log('Create New Row', domConstruct);
-      var lrec = { type:'single' };
+      var lrec = { type: 'single' };
       var toIngest = this.exp_design.checked ? this.singleConditionToAttachPt : this.singleToAttachPt;
       var chkPassed = this.ingestAttachPoints(toIngest, lrec);
       if (chkPassed) {
@@ -592,11 +743,12 @@ define([
         if (lrec.condition) {
           advPairInfo.push('Condition:' + lrec.condition);
         }
+        this.addLibraryInfo(lrec, { 'read': { 'label': this.read.searchBox.get('displayedValue') } }, tr);
         if (advPairInfo.length) {
-          condition_icon = this.getConditionIcon(lrec.condition);
+          var condition_icon = this.getConditionIcon(lrec.condition);
           lrec.design = true;
           var tdinfo = domConstruct.create('td', { 'class': 'iconcol', innerHTML: condition_icon }, tr);
-          var ihandle = new Tooltip({
+          new Tooltip({
             connectId: [tdinfo],
             label: advPairInfo.join('</br>')
           });
@@ -613,7 +765,7 @@ define([
           this.libsTable.deleteRow(-1);
         }
         var handle = on(td2, 'click', lang.hitch(this, function (evt) {
-          this.destroyLib(lrec, query_id = lrec.id, 'id');
+          this.destroyLib(lrec, lrec.id, 'id');
         }));
         lrec.handle = handle;
         this.createLib(lrec);
@@ -632,9 +784,10 @@ define([
         this.decreaseRows(this.libsTable, this.addedLibs, this.numlibs);
         if (this.addedLibs.counter < this.startingRows) {
           var ntr = this.libsTable.insertRow(-1);
-          var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-          var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-          var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
         }
         obj.handle.remove();
         this.libraryStore.remove(obj.id);
@@ -654,11 +807,11 @@ define([
           this.decreaseRows(this.contrastTable, this.addedContrast, this.numContrastWidget);
           if (this.addedContrast.counter < this.initContrasts) {
             var ntr = this.contrastTable.insertRow(-1);
-            var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd4 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd5 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
           }
           this.contrastStore.remove(obj.id);
         }, this);
@@ -670,13 +823,13 @@ define([
       if (this.genome_nameWidget.value in this.hostGenomes) {
         var newOptions = [
           {
-            label:'Tuxedo', value:'RNA-Rocket', selected:false, disabled:true
+            label: 'Tuxedo', value: 'RNA-Rocket', selected: false, disabled: true
           },
           {
-            label:'Host HISAT2', value:'Host', selected:true, disabled:false
+            label: 'Host HISAT2', value: 'Host', selected: true, disabled: false
           },
           {
-            label:'Rockhopper', value:'Rockhopper', selected:false, disabled:true
+            label: 'Rockhopper', value: 'Rockhopper', selected: false, disabled: true
           }];
         this.recipe.set('options', newOptions).reset();
         this.recipe.set('value', 'Host');
@@ -684,13 +837,13 @@ define([
       else {
         var newOptions = [
           {
-            label:'Tuxedo', value:'RNA-Rocket', selected:false, disabled:false
+            label: 'Tuxedo', value: 'RNA-Rocket', selected: false, disabled: false
           },
           {
-            label:'Host HISAT2', value:'Host', selected:false, disabled:true
+            label: 'Host HISAT2', value: 'Host', selected: false, disabled: true
           },
           {
-            label:'Rockhopper', value:'Rockhopper', selected:true, disabled:false
+            label: 'Rockhopper', value: 'Rockhopper', selected: true, disabled: false
           }];
         this.recipe.set('options', newOptions).reset();
         if (curRecipe == 'RNA-Rocket') {
@@ -706,7 +859,7 @@ define([
         new Dialog({ title: 'Notice', content: msg }).show();
         return;
       }
-      var lrec = { type:'paired' };
+      var lrec = { type: 'paired' };
       // If you want to disable advanced parameters while not shown this would be the place.
       // but for right now, if you set them and then hide them, they are still active
       var pairToIngest = this.exp_design.checked ? this.pairConditionToAttachPt : this.pairToAttachPt1;
@@ -723,11 +876,12 @@ define([
         if (lrec.condition) {
           advPairInfo.push('Condition:' + lrec.condition);
         }
+        this.addLibraryInfo(lrec, { 'read1': { 'label': this.read1.searchBox.get('displayedValue') }, 'read2': { 'label': this.read2.searchBox.get('displayedValue') } }, tr);
         if (advPairInfo.length) {
           lrec.design = true;
-          condition_icon = this.getConditionIcon(lrec.condition);
+          var condition_icon = this.getConditionIcon(lrec.condition);
           var tdinfo = domConstruct.create('td', { 'class': 'iconcol', innerHTML: condition_icon }, tr);
-          var ihandle = new Tooltip({
+          new Tooltip({
             connectId: [tdinfo],
             label: advPairInfo.join('</br>')
           });
@@ -744,7 +898,7 @@ define([
           this.libsTable.deleteRow(-1);
         }
         var handle = on(td2, 'click', lang.hitch(this, function (evt) {
-          this.destroyLib(lrec, query_id = lrec.id, 'id');
+          this.destroyLib(lrec, lrec.id, 'id');
         }));
         lrec.handle = handle;
         this.createLib(lrec);

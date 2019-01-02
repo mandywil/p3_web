@@ -1,10 +1,10 @@
 define([
-  'dojo/_base/declare', 'dijit/_WidgetBase', 'dojo/on',
+  'dojo/_base/declare', 'dojo/_base/array', 'dijit/_WidgetBase', 'dojo/on',
   'dojo/dom-class', 'dijit/_TemplatedMixin', 'dijit/_WidgetsInTemplateMixin',
   'dojo/text!./templates/Annotation.html', './AppBase',
   'dojo/_base/lang', '../../WorkspaceManager'
 ], function (
-  declare, WidgetBase, on,
+  declare, array, WidgetBase, on,
   domClass, Templated, WidgetsInTemplate,
   Template, AppBase, lang, WorkspaceManager
 ) {
@@ -12,6 +12,9 @@ define([
     baseClass: 'Annotation',
     templateString: Template,
     applicationName: 'GenomeAnnotation',
+    requireAuth: true,
+    applicationLabel: 'Genome Annotation',
+    applicationDescription: 'The Genome Annotation Service uses the RAST tool kit (RASTtk) to provide annotation of genomic features.',
     applicationHelp: 'user_guides/services/genome_annotation_service.html',
     tutorialLink: 'tutorial/genome_annotation/annotation.html',
     pageTitle: 'Genome Annotation Service',
@@ -29,6 +32,9 @@ define([
       var _self = this;
       if (this._started) { return; }
       this.inherited(arguments);
+      if (this.requireAuth && (window.App.authorizationToken === null || window.App.authorizationToken === undefined)) {
+        return;
+      }
       _self.defaultPath = WorkspaceManager.getDefaultFolder() || _self.activeWorkspacePath;
       _self.output_pathWidget.set('value', _self.defaultPath);
     },
@@ -36,7 +42,7 @@ define([
     changeCode: function (item) {
       this.code_four = false;
       item.lineage_names.forEach(lang.hitch(this, function (lname) {
-        if (dojo.indexOf(this.genera_four, lname) >= 0) {
+        if (array.indexOf(this.genera_four, lname) >= 0) {
           this.code_four = true;
         }
       }));
@@ -45,8 +51,11 @@ define([
 
     onTaxIDChange: function (val) {
       this._autoNameSet = true;
-      var tax_id = this.tax_idWidget.get('item').taxon_id;
-      var sci_name = this.tax_idWidget.get('item').taxon_name;
+      var tax_item = this.tax_idWidget.get('item');
+      if (tax_item) {
+        var tax_id = tax_item.taxon_id;
+      }
+      // var sci_name = this.tax_idWidget.get('item').taxon_name;
       // var tax_obj=this.tax_idWidget.get("item");
       if (tax_id) {
         var name_promise = this.scientific_nameWidget.store.get(tax_id);

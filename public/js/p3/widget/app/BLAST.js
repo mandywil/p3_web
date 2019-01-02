@@ -62,8 +62,11 @@ define([
     { value: 'transcriptomics.ffn', label: 'Transcriptomics Genomes features (ffn)' },
     { value: 'transcriptomics.faa', label: 'Transcriptomics Genomes proteins (faa)' },
     { value: 'plasmid.fna', label: 'plasmid contigs (fna)' },
-    // {value: "plasmid.ffn", label: "plasmid contigs features (ffn)"},
-    // {value: "plasmid.faa", label: "plasmid contigs proteins (faa)"},
+    { value: 'plasmid.ffn', label: 'plasmid contigs features (ffn)' },
+    { value: 'plasmid.faa', label: 'plasmid contigs proteins (faa)' },
+    { value: 'phage.fna', label: 'phage contigs (fna)' },
+    { value: 'phage.ffn', label: 'phage contigs features (ffn)' },
+    { value: 'phage.faa', label: 'phage contigs proteins (faa)' },
     { value: 'spgenes.faa', label: 'Specialty gene reference proteins (faa)' },
     { value: 'selGenome', label: 'Search within selected genomes' },
     { value: 'selGroup', label: 'Search within selected genome group' },
@@ -252,7 +255,7 @@ define([
               objs.forEach(function (obj) {
                 var data = JSON.parse(obj.data);
                 data.id_list.genome_id.forEach(function (d) {
-                  if (!genomeIdHash.hasOwnProperty(d)) {
+                  if (!Object.prototype.hasOwnProperty.call(genomeIdHash, d)) {
                     genomeIdHash[d] = true;
                   }
                 });
@@ -345,7 +348,7 @@ define([
         var td = domConstruct.create('td', { 'class': 'textcol genomedata', innerHTML: '' }, tr);
         td.genomeRecord = lrec;
         td.innerHTML = "<div class='libraryrow'>" + this.makeGenomeName() + '</div>';
-        var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+        domConstruct.create('td', { innerHTML: '' }, tr);
         var td2 = domConstruct.create('td', { innerHTML: "<i class='fa icon-x fa-1x' />" }, tr);
         if (this.addedGenomes < this.startingRows) {
           this.genomeTable.deleteRow(-1);

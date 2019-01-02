@@ -17,6 +17,9 @@ define([
     baseClass: 'App Assembly',
     templateString: Template,
     applicationName: 'GenomeComparison',
+    requireAuth: true,
+    applicationLabel: 'Proteome Comparison',
+    applicationDescription: 'The Proteome Comparison Service performs protein sequence-based genome comparison using bidirectional BLASTP. This service allows users to select genomes and compare them to reference genome.',
     applicationHelp: 'user_guides/services/proteome_comparison_service.html',
     tutorialLink: 'tutorial/proteome_comparison/proteome_comparison.html',
     pageTitle: 'Proteome Comparison',
@@ -38,6 +41,9 @@ define([
     startup: function () {
       var _self = this;
       if (this._started) {
+        return;
+      }
+      if (this.requireAuth && (window.App.authorizationToken === null || window.App.authorizationToken === undefined)) {
         return;
       }
       this.inherited(arguments);
@@ -66,11 +72,11 @@ define([
     },
 
     emptyTable: function (target, rowLimit) {
-      for (i = 0; i < rowLimit; i++) {
+      for (var i = 0; i < rowLimit; i++) {
         var tr = target.insertRow(0);// domConstr.create("tr",{},this.genomeTableBody);
-        var td = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
-        var td2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
-        var td3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
+        domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
+        domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
+        domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
       }
     },
 
@@ -282,7 +288,7 @@ define([
         var td = domConstruct.create('td', { 'class': 'textcol genomedata', innerHTML: '' }, tr);
         td.genomeRecord = lrec;
         td.innerHTML = "<div class='libraryrow'>" + this.makeGenomeName() + '</div>';
-        var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+        domConstruct.create('td', { innerHTML: '' }, tr);
         var td2 = domConstruct.create('td', { innerHTML: "<i class='fa icon-x fa-1x' />" }, tr);
         if (this.addedGenomes < this.startingRows) {
           this.genomeTable.deleteRow(-1);
@@ -293,9 +299,9 @@ define([
           this.decreaseGenome('genome', newGenomeIds);
           if (this.addedGenomes < this.startingRows) {
             var ntr = this.genomeTable.insertRow(-1);
-            var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
           }
           handle.remove();
         }));
@@ -316,7 +322,7 @@ define([
         var td = domConstruct.create('td', { 'class': 'textcol genomedata', innerHTML: '' }, tr);
         td.genomeRecord = lrec;
         td.innerHTML = "<div class='libraryrow'>" + this.makeFastaName() + '</div>';
-        var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+        domConstruct.create('td', { innerHTML: '' }, tr);
         var td2 = domConstruct.create('td', { innerHTML: "<i class='fa icon-x fa-1x' />" }, tr);
         if (this.addedGenomes < this.startingRows) {
           this.genomeTable.deleteRow(-1);
@@ -327,9 +333,9 @@ define([
           this.decreaseGenome('fasta', newGenomeIds);
           if (this.addedGenomes < this.startingRows) {
             var ntr = this.genomeTable.insertRow(-1);
-            var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
           }
           handle.remove();
         }));
@@ -350,7 +356,7 @@ define([
         var td = domConstruct.create('td', { 'class': 'textcol genomedata', innerHTML: '' }, tr);
         td.genomeRecord = lrec;
         td.innerHTML = "<div class='libraryrow'>" + this.makeFeatureGroupName() + '</div>';
-        var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+        domConstruct.create('td', { innerHTML: '' }, tr);
         var td2 = domConstruct.create('td', { innerHTML: "<i class='fa icon-x fa-1x' />" }, tr);
         if (this.addedGenomes < this.startingRows) {
           this.genomeTable.deleteRow(-1);
@@ -361,9 +367,9 @@ define([
           this.decreaseGenome('feature_group', newGenomeIds);
           if (this.addedGenomes < this.startingRows) {
             var ntr = this.genomeTable.insertRow(-1);
-            var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-            var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+            domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
           }
           handle.remove();
         }));
@@ -406,7 +412,7 @@ define([
           var td = domConstruct.create('td', { 'class': 'textcol genomedata', innerHTML: '' }, tr);
           td.genomeRecord = lrec;
           td.innerHTML = "<div class='libraryrow'>" + this.makeGenomeGroupName() + '</div>';
-          var tdinfo = domConstruct.create('td', { innerHTML: '' }, tr);
+          domConstruct.create('td', { innerHTML: '' }, tr);
           var td2 = domConstruct.create('td', { innerHTML: "<i class='fa icon-x fa-1x' />" }, tr);
           if (this.addedGenomes < this.startingRows) {
             this.genomeTable.deleteRow(-1);
@@ -417,9 +423,9 @@ define([
             this.decreaseGenome('genome_group', newGenomeIds);
             if (this.addedGenomes < this.startingRows) {
               var ntr = this.genomeTable.insertRow(-1);
-              var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-              var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-              var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+              domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+              domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+              domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
             }
             handle.remove();
           }));

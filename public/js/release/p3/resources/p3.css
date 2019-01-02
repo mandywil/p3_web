@@ -13549,6 +13549,13 @@ th.dgrid-cell.wsItemMembers {
 	color: #ddd;
 	border-color: #ddd;
 }
+.ActionButtonWrapper.disabled,
+.ActionButtonWrapper.disabled .ActionButtonText,
+.ActionButtonWrapper.disabled .ActionButton.fa,
+.ActionButtonWrapper.disabled  {
+	color: #ddd;
+	border-color: #ddd;
+}
 .ActionButtonContainer {
 	float: left;
 	font-size:.85em;
@@ -13827,7 +13834,8 @@ th.dgrid-cell.wsItemMembers {
 .appTitle p {
     margin-left: 15px;
 }
-.paramlabel {
+.paramlabel,
+.Assembly label {
     font-size: .65em;
     text-transform: uppercase;
 }
@@ -13892,7 +13900,6 @@ table.librarytable td > i {
     width: 100%;
     display: inline-block;
     margin-top: 5px;
-    padding-left: 10px;
 }
 .appRow {
     width: 100%;
@@ -13929,6 +13936,7 @@ table.librarytable td > i {
     text-align: center;
     margin: 0 0 0 15px;
 }
+.smallInput,
 .insertspinner {
     width: 80px;
 }
@@ -14056,6 +14064,18 @@ div.appsublabel {
 }
 .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-switch {
     right: 0;
+}
+.Assembly .app-btn > .dijitButtonNode {
+    font-size: .9em;
+    background-color: #fff;
+    color: #222;
+    border: 1px solid #aaa;
+}
+.Assembly .app-btn > .dijitButtonNode:hover {
+    background-color: #f8f8f8;
+}
+.object-selector .search-box {
+	width: 82%
 }
 .Phylogeny a:link, a:visited {
     color:black;
@@ -15044,7 +15064,7 @@ div.appsublabel {
   #patric-homepage .grid-container {
     display: grid;
     grid-template-columns: 440px 440px 300px;
-    grid-template-rows: 215px 170px 170px 215px;
+    grid-template-rows: 225px 170px 170px 225px;
     grid-gap: 20px;
   }
   #patric-homepage .browse-search {
@@ -15110,7 +15130,7 @@ div.appsublabel {
   -webkit-box-pack: justify;
       -ms-flex-pack: justify;
           justify-content: space-between;
-  width: 80%;
+  width: 95%;
   padding: 5px 0px;
 }
 #patric-homepage .browse-search .browse h3 {
@@ -15320,6 +15340,7 @@ div.appsublabel {
   left: 0px;
   top: 0px;
   opacity: 0;
+  visibility: hidden;
   z-index: 1;
   -webkit-box-sizing: border-box;
           box-sizing: border-box;
@@ -15342,17 +15363,18 @@ div.appsublabel {
 }
 #patric-homepage .announcements #slides .slide .feed-img {
   width: 100%;
-  height: auto;
+  max-height: 170px!important;
 }
 #patric-homepage .announcements #slides .current-slide {
   opacity: 1;
+  visibility: visible;
 }
 #patric-homepage .announcements #dot-navigation {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
   position: relative;
-  margin-top: 320px;
+  margin-top: 330px;
   -webkit-box-pack: center;
       -ms-flex-pack: center;
           justify-content: center;
@@ -16405,7 +16427,6 @@ body.patric {
     font-family: Arial, sans-serif;
     color: #333333;
     font-size: .9em;
-    font-weight: 200;
 }
 body.patric {
     min-width: 1099px;
@@ -16555,14 +16576,28 @@ table.p3basic thead th {
     color: #666666;
     font-weight: bold;
 }
-table.p3basic td, th {
+table.p3basic td,
+table.p3basic th {
     border-top: #d3d3d3 1px solid;
     border-left: #d3d3d3 1px solid;
 }
 table.striped tr:nth-child(odd) td,
-table.striped tr:nth-child(odd) th,
+table.striped tr:nth-child(odd):not(:first-child) th,
 table tr.even td {
     background: #f5f5f5;
+}
+table.p3basic.striped-light {
+    background: #fff;
+}
+table.p3basic.striped-light thead th {
+    background: #fff;
+    color: #444;
+    font-weight: bold;
+}
+table.striped-light tr:nth-child(odd) td,
+table.striped-light tr:nth-child(odd):not(:first-child) th,
+table tr.even td {
+    background: #f8f8f8;
 }
 .claro .dijitDialog {
     perspective: 2000px;
@@ -17358,4 +17393,13 @@ body footer.main-footer ul.left {
     color: #454545 !important;
     background-color: #f0ad4e;
     border-color: #eea236;
+}
+.SystemStatus {
+    margin: 50px 150px 0 150px;
+}
+.SystemStatus i.success{
+    color: #22b900;
+}
+.SystemStatus i.fail {
+    color: #bd0000;
 }

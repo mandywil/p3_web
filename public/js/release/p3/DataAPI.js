@@ -25,6 +25,13 @@ define("p3/DataAPI", [
         'Authorization': ''
       }
     },
+    getOpts: {
+      headers: {
+        Accept: 'application/json',
+        Authorization: ''
+      },
+      handleAs: 'json'
+    },
 
     setGenomePermissions: function (ids, perms) {
       var self = this;
@@ -68,17 +75,16 @@ define("p3/DataAPI", [
       return xhr.post(url, params);
     },
 
-    get: function (data) {
-      // implement if needed
+    get: function (path) {
+      return xhr.get(this.apiUrl + path, this.getOpts);
     },
-
 
     solrPermsToObjs: function (selection) {
       var permSets = [];
-      var allPermissions = {};
+      // var allPermissions = {};
 
       selection.forEach(function (sel) {
-        var id = sel.genome_id;
+        // var id = sel.genome_id;
 
         var readList = sel.user_read || [],
           writeList = sel.user_write || [];
@@ -123,6 +129,7 @@ define("p3/DataAPI", [
       }
 
       this.postOpts.headers.Authorization = token;
+      this.getOpts.headers.Authorization = token;
       this.apiUrl = apiUrl;
     }
   }))();

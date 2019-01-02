@@ -16,7 +16,11 @@ define([
   return declare([AppBase], {
     baseClass: 'IDMapper',
     applicationName: 'IDMapper',
+    requireAuth: true,
+    applicationLabel: 'ID Mapper',
+    applicationDescription: 'The ID Mapper tool maps PATRIC identifiers to those from other prominent external databases such as GenBank, RefSeq, EMBL, UniProt, KEGG, etc. Alternatively, it can map a list of external database identifiers to the corresponding PATRIC features.',
     applicationHelp: 'user_guides/services/id_mapper.html',
+    tutorialLink: 'tutorial/id_mapper/id_mapper.html',
     templateString: Template,
     path: '',
     mapFromIDs: null,
@@ -27,6 +31,9 @@ define([
 
     startup: function () {
       if (this._started) {
+        return;
+      }
+      if (this.requireAuth && (window.App.authorizationToken === null || window.App.authorizationToken === undefined)) {
         return;
       }
       this.inherited(arguments);
@@ -149,7 +156,7 @@ define([
       var fromIdGroup = null;
       var toIdGroup = null;
       var patricIdGroup = {
-        patric_id:'', feature_id:'', P2_feature_id:'', alt_locus_tag:'', refseq_locus_tag:'', gene_id:'', gi:'', protein_id:''
+        patric_id: '', feature_id: '', P2_feature_id: '', alt_locus_tag: '', refseq_locus_tag: '', gene_id: '', gi: '', protein_id: ''
       };
 
       fromIdGroup = (from in patricIdGroup) ? 'PATRIC' : 'OTHER';
@@ -163,7 +170,7 @@ define([
         query('.idmap_result_div .GridContainer').style('visibility', 'visible');
         query('.PerspectiveTotalCount').style('visibility', 'visible');
         _self.result.set('state', {
-          fromIdGroup: fromIdGroup, joinId:via, fromId: from, toIdGroup:toIdGroup, toId:to, fromIdValue:ids
+          fromIdGroup: fromIdGroup, joinId: via, fromId: from, toIdGroup: toIdGroup, toId: to, fromIdValue: ids
         });
       }
 

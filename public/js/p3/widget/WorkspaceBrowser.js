@@ -2,22 +2,24 @@ define([
   'dojo/_base/declare', 'dijit/layout/BorderContainer', 'dojo/on', 'dojo/query',
   'dojo/dom-class', 'dijit/layout/ContentPane', 'dojo/dom-construct', 'dojo/dom-attr',
   './WorkspaceExplorerView', 'dojo/topic', './ItemDetailPanel',
-  './ActionBar', 'dojo/_base/Deferred', '../WorkspaceManager', 'dojo/_base/lang',
+  './ActionBar', 'dojo/_base/Deferred', '../WorkspaceManager', 'dojo/_base/lang', '../util/PathJoin',
   './Confirmation', './SelectionToGroup', 'dijit/Dialog', 'dijit/TooltipDialog',
   'dijit/popup', 'dojo/text!./templates/IDMapping.html', 'dojo/request', 'dijit/form/Select',
   './ContainerActionBar', './GroupExplore', './PerspectiveToolTip',
   'dijit/form/TextBox', './WorkspaceObjectSelector', './PermissionEditor',
+  'dojo/promise/all',
 
   'dojo/NodeList-traverse'
 ], function (
   declare, BorderContainer, on, query,
   domClass, ContentPane, domConstruct, domAttr,
   WorkspaceExplorerView, Topic, ItemDetailPanel,
-  ActionBar, Deferred, WorkspaceManager, lang,
+  ActionBar, Deferred, WorkspaceManager, lang, PathJoin,
   Confirmation, SelectionToGroup, Dialog, TooltipDialog,
   popup, IDMappingTemplate, xhr, Select,
   ContainerActionBar, GroupExplore, PerspectiveToolTipDialog,
-  TextBox, WSObjectSelector, PermissionEditor
+  TextBox, WSObjectSelector, PermissionEditor,
+  All
 ) {
   return declare([BorderContainer], {
     baseClass: 'WorkspaceBrowser',
@@ -31,6 +33,8 @@ define([
       'diffexp_input_data', 'diffexp_input_metadata', 'svg', 'gif', 'png', 'jpg'],
     design: 'sidebar',
     splitter: false,
+    docsServiceURL: window.App.docsServiceURL,
+    tutorialLink: 'user_guides/workspaces/workspace.html',
     startup: function () {
       var self = this;
 
@@ -81,6 +85,17 @@ define([
         else
         { domAttr.set(text, 'textContent', 'HIDE'); }
       });
+
+      this.actionPanel.addAction('UserGuide', 'fa icon-info-circle fa-2x',
+        {
+          label: 'GUIDE',
+          persistent: true,
+          validTypes: ['*'],
+          tooltip: 'Open User Guide in a new Tab'
+        },
+        lang.hitch(this, function (selection, container) {
+          window.open(PathJoin(this.docsServiceURL, this.tutorialLink));
+        }), true);
 
       this.actionPanel.addAction('ViewGenomeGroup', 'MultiButton fa icon-selection-GenomeList fa-2x', {
         label: 'VIEW',
@@ -228,7 +243,6 @@ define([
 
       on(downloadTT.domNode, 'div:click', function (evt) {
         var rel = evt.target.attributes.rel.value;
-        var selection = self.actionPanel.get('selection');
         var dataType = (self.actionPanel.currentContainerWidget.containerType == 'genome_group') ? 'genome' : 'genome_feature';
         var currentQuery = self.actionPanel.currentContainerWidget.get('query');
 
@@ -320,14 +334,24 @@ define([
         validTypes: ['GenomeComparison'],
         tooltip: 'Toggle Summary View'
       }, function (selection) {
-        // console.log("View Genome Comparison: ", selection[0]);
-        // console.log("currentContainerWidget: ", typeof self.actionPanel.currentContainerWidget);
         var cid = self.actionPanel.currentContainerWidget.getComparisonId();
         if (self.actionPanel.currentContainerWidget.isSummaryView()) {
           Topic.publish('/navigate', { href: '/workspace' + cid });
         } else {
           Topic.publish('/navigate', { href: '/workspace' + cid + '#summary' });
         }
+      }, false);
+
+      this.browserHeader.addAction('ViewGenomeAlignment', 'fa icon-eye fa-2x', {
+        label: 'VIEW',
+        multiple: false,
+        validTypes: ['GenomeAlignment'],
+        tooltip: 'View Alignment'
+      }, function (selection) {
+        var sel = selection[0],
+          path = sel.path + '.' + sel.name + '/alignment.json';
+
+        Topic.publish('/navigate', { href: '/view/GenomeAlignment/' + path });
       }, false);
 
       this.browserHeader.addAction('SelectDownloadSeqComparison', 'fa icon-download fa-2x', {
@@ -371,6 +395,18 @@ define([
         Topic.publish('/navigate', { href: '/view/Genome/' + gid });
 
       }, false);
+
+      // XXX WIP
+      // this.actionPanel.addAction('ViewAnnotatedGenome', 'fa icon-eye fa-2x', {
+      //   label: 'VIEW',
+      //   multiple: false,
+      //   validTypes: ['GenomeAnnotation', 'GenomeAnnotationGenbank'],
+      //   tooltip: 'View Annotated Genome'
+      // }, function (selection) {
+      //   console.log("View Annotated Genome selection: ", selection);
+      //   var gid = selection[0].reference_genome_id;
+      //   Topic.publish('/navigate', { href: '/view/Genome/' + gid });
+      // }, false);
 
       this.browserHeader.addAction('ViewModel', 'fa icon-eye fa-2x', {
         label: 'VIEW <i class="icon-external-link"></i>',
@@ -435,7 +471,7 @@ define([
       }, self.path.split('/').length > 3);
 
       this.browserHeader.addAction('ShowHidden', (window.App.showHiddenFiles ? 'fa icon-eye-slash' : 'fa icon-eye'), {
-        label: 'SHOW HIDDEN',
+        label: window.App.showHiddenFiles ? 'HIDE HIDDEN' : 'SHOW HIDDEN',
         multiple: true,
         validTypes: ['folder'],
         tooltip: 'Show hidden folders/files'
@@ -454,9 +490,11 @@ define([
         { domAttr.set(text, 'textContent', 'HIDE HIDDEN'); }
         else
         { domAttr.set(text, 'textContent', 'SHOW HIDDEN'); }
+
+        Topic.publish('/refreshWorkspace');
       }, false);
 
-      var addWSBtn = this.browserHeader.addAction('CreateWorkspace', 'fa icon-add-workspace fa-2x', {
+      this.browserHeader.addAction('CreateWorkspace', 'fa icon-add-workspace fa-2x', {
         label: 'NEW WS',
         validTypes: ['folder'],
         tooltip: 'Create Workspace'
@@ -521,7 +559,7 @@ define([
         validTypes: ['RNASeq', 'TnSeq', 'Variation'],
         tooltip: 'View tracks in genome browser.'
       }, function (selection) {
-        // console.log("View Tracks: ", selection[0]);
+        // console.log("View Tracks: ", this);
         var genomeId = self.actionPanel.currentContainerWidget.getGenomeId();
         var urlQueryParams = self.actionPanel.currentContainerWidget.getJBrowseURLQueryParams();
         Topic.publish('/navigate', { href: '/view/Genome/' + genomeId + '#' + urlQueryParams });
@@ -748,7 +786,7 @@ define([
         try {
           self.renameDialog(path, isJob);
         } catch (e) {
-          var d = new Dialog({
+          new Dialog({
             content: e.toString(),
             title: "Sorry, you can't rename that...",
             style: 'width: 250px;'
@@ -769,7 +807,8 @@ define([
         // open object selector to get destination
         var objSelector = new WSObjectSelector({
           allowUpload: false,
-          autoSelectParent: true,
+          autoSelectCurrent: true,
+          allowUserSpaceSelection: true,
           onlyWritable: true,
           selectionText: 'Destination'
         });
@@ -845,7 +884,8 @@ define([
         // open object selector to get destination
         var objSelector = new WSObjectSelector({
           allowUpload: false,
-          autoSelectParent: true,
+          autoSelectCurrent: true,
+          allowUserSpaceSelection: true,
           onlyWritable: true,
           selectionText: 'Destination'
         });
@@ -936,7 +976,7 @@ define([
         existingPerms = selection.permissions;
 
       // update workspace list on confirm
-      var onConfirm = function (newPerms) {
+      var onConfirm = function (newPerms, publicPermission) {
         // set any deleted users' permissions to 'n'
         var newUsers = newPerms.map(function (p) { return p.user; });
         existingPerms.forEach(function (p) {
@@ -955,14 +995,22 @@ define([
         });
 
         var prom = WorkspaceManager.setPermissions(selection.path, newPerms);
-        Deferred.when(prom).then(function (res) {
 
-          Topic.publish('/Notification', {
-            message: 'Permissions updated.',
-            type: 'message'
-          });
+        // also update public permission
+        if (['n', 'r'].indexOf(publicPermission) !== -1) {
+          var publicProm = WorkspaceManager.setPublicPermission(selection.path, publicPermission);
+        }
 
-          Topic.publish('/refreshWorkspace');
+        Deferred.when(All(prom, publicProm)).then(function () {
+
+          setTimeout(function () {
+            Topic.publish('/refreshWorkspace');
+
+            Topic.publish('/Notification', {
+              message: 'Permissions updated.',
+              type: 'message'
+            });
+          }, 100);
 
           // refresh list in detail panel
           self.activePanel.clearSelection();
@@ -988,7 +1036,6 @@ define([
 
     renameDialog: function (path, isJob) {
       var self = this;
-      var conf = '';
 
       var currentName = path.slice(path.lastIndexOf('/') + 1);
       var nameInput = new TextBox({
@@ -1025,7 +1072,7 @@ define([
               _self.hideAndDestroy();
             }, function (error) {
               new Dialog({
-                content:  'The name <i>' + newName + '</i> already exists!  Please pick a unique name.',
+                content: 'The name <i>' + newName + '</i> already exists!  Please pick a unique name.',
                 title: 'Sorry!',
                 style: 'width: 400px;'
               }).show();
@@ -1164,7 +1211,7 @@ define([
         return decodeURIComponent(c);
       });
       // console.log("[WorkspaceBrowser] parts:",parts)
-      var workspace = parts[0] + '/' + parts[1];
+      // var workspace = parts[0] + '/' + parts[1];
       var obj;
 
       if (parts[0] == 'public') {
@@ -1252,81 +1299,75 @@ define([
         }
 
         Deferred.when(panelCtor, lang.hitch(this, function (Panel) {
-          // console.log("ActivePanel instanceof Panel: ", this.activePanel instanceof Panel);
-          if (!this.activePanel || !(this.activePanel instanceof Panel)) {
-            if (this.activePanel) {
-              this.removeChild(this.activePanel);
-            }
-            // console.log("Creeate New Active Panel");
-            var newPanel = new Panel(params);
-            var hideTimer;
+          if (this.activePanel) {
+            this.removeChild(this.activePanel);
+          }
+          // console.log("Creeate New Active Panel");
+          var newPanel = new Panel(params);
+          var hideTimer;
 
-            if (this.actionPanel) {
-              this.actionPanel.set('currentContainerWidget', newPanel);
-              this.itemDetailPanel.set('containerWidget', newPanel);
-            }
-
-            if (newPanel.on) {
-              newPanel.on('select', lang.hitch(this, function (evt) {
-                var sel = Object.keys(evt.selected).map(lang.hitch(this, function (rownum) {
-                  // console.log("Row: ", evt.grid.row(rownum).data);
-                  return evt.grid.row(rownum).data;
-                }));
-
-                if (hideTimer) {
-                  clearTimeout(hideTimer);
-                }
-                if (sel.length > 0) {
-                  this.addChild(this.actionPanel);
-                }
-
-                this.actionPanel.set('selection', sel);
-                this.itemDetailPanel.set('selection', sel);
-              }));
-
-              newPanel.on('deselect', lang.hitch(this, function (evt) {
-
-                if (!evt.selected) {
-                  this.actionPanel.set('selection', []);
-                  this.itemDetailPanel.set('selection', []);
-                } else {
-                  var sel = Object.keys(evt.selected).map(lang.hitch(this, function (rownum) {
-                    return evt.grid.row(rownum).data;
-                  }));
-                }
-
-                this.actionPanel.set('selection', sel);
-                this.itemDetailPanel.set('selection', sel);
-              }));
-
-              newPanel.on('ItemDblClick', lang.hitch(this, function (evt) {
-                if (evt.item && evt.item.type && (this.navigableTypes.indexOf(evt.item.type) >= 0)) {
-                  Topic.publish('/navigate', { href: '/workspace' + evt.item_path });
-                  this.actionPanel.set('selection', []);
-                  this.itemDetailPanel.set('selection', []);
-                  newPanel.clearSelection();
-                } else {
-                  console.log('non-navigable type, todo: show info panel when dblclick');
-                }
-
-              }));
-            }
-
-            this.addChild(newPanel);
-            this.activePanel = newPanel;
-          } else {
-            this.activePanel.set('path', this.path);
-            if (this.activePaneal && 'clearSelection' in this.activePaneal) {
-              this.activePanel.clearSelection();
-            }
+          if (this.actionPanel) {
+            this.actionPanel.set('currentContainerWidget', newPanel);
+            this.itemDetailPanel.set('containerWidget', newPanel);
           }
 
-          var parts = this.path.split('/').filter(function (x) {
-            return x != '';
-          }).map(function (c) {
-            return decodeURIComponent(c);
-          });
-          var workspace = parts[0] + '/' + parts[1];
+          if (newPanel.on) {
+            newPanel.on('select', lang.hitch(this, function (evt) {
+              var sel = Object.keys(evt.selected).map(lang.hitch(this, function (rownum) {
+                // console.log("Row: ", evt.grid.row(rownum).data);
+                return evt.grid.row(rownum).data;
+              }));
+
+              if (hideTimer) {
+                clearTimeout(hideTimer);
+              }
+              if (sel.length > 0) {
+                this.addChild(this.actionPanel);
+              }
+
+              this.actionPanel.set('selection', sel);
+              this.itemDetailPanel.set('selection', sel);
+            }));
+
+            newPanel.on('deselect', lang.hitch(this, function (evt) {
+
+              if (!evt.selected) {
+                this.actionPanel.set('selection', []);
+                this.itemDetailPanel.set('selection', []);
+              } else {
+                var sel = Object.keys(evt.selected).map(lang.hitch(this, function (rownum) {
+                  return evt.grid.row(rownum).data;
+                }));
+              }
+
+              this.actionPanel.set('selection', sel);
+              this.itemDetailPanel.set('selection', sel);
+            }));
+
+            newPanel.on('ItemDblClick', lang.hitch(this, function (evt) {
+              if (evt.item && evt.item.type && (this.navigableTypes.indexOf(evt.item.type) >= 0)) {
+                Topic.publish('/navigate', { href: '/workspace' + evt.item_path });
+                this.actionPanel.set('selection', []);
+                this.itemDetailPanel.set('selection', []);
+                if ('clearSelection' in newPanel) {
+                  newPanel.clearSelection();
+                }
+              } else {
+                console.log('non-navigable type, todo: show info panel when dblclick');
+              }
+
+            }));
+          }
+
+          this.addChild(newPanel);
+          this.activePanel = newPanel;
+
+          // var parts = this.path.split('/').filter(function (x) {
+          //   return x != '';
+          // }).map(function (c) {
+          //   return decodeURIComponent(c);
+          // });
+          // var workspace = parts[0] + '/' + parts[1];
 
           // don't set current path in workspace manager for now
           // WorkspaceManager.set("currentPath", val);

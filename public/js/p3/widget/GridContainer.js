@@ -4,14 +4,14 @@ define([
   './ActionBar', './FilterContainerActionBar', 'dojo/_base/lang', './ItemDetailPanel', './SelectionToGroup',
   'dojo/topic', 'dojo/query', 'dijit/layout/ContentPane', 'dojo/text!./templates/IDMapping.html',
   'dijit/Dialog', 'dijit/popup', 'dijit/TooltipDialog', './DownloadTooltipDialog', './PerspectiveToolTip',
-  './CopyTooltipDialog', './PermissionEditor', '../WorkspaceManager', '../DataAPI', 'dojo/_base/Deferred'
+  './CopyTooltipDialog', './PermissionEditor', '../WorkspaceManager', '../DataAPI', 'dojo/_base/Deferred', '../util/PathJoin'
 ], function (
   declare, BorderContainer, on, domConstruct,
   request, when, domClass,
   ActionBar, ContainerActionBar, lang, ItemDetailPanel, SelectionToGroup,
   Topic, query, ContentPane, IDMappingTemplate,
   Dialog, popup, TooltipDialog, DownloadTooltipDialog, PerspectiveToolTipDialog,
-  CopyTooltipDialog, PermissionEditor, WorkspaceManager, DataAPI, Deferred
+  CopyTooltipDialog, PermissionEditor, WorkspaceManager, DataAPI, Deferred, PathJoin
 ) {
 
   var mmc = '<div class="wsActionTooltip" rel="dna">Nucleotide</div><div class="wsActionTooltip" rel="protein">Amino Acid</div>';
@@ -38,7 +38,7 @@ define([
       return d.feature_id;
     });
     delete viewMSATT.selection;
-    var idType;
+    // var idType;
 
     Topic.publish('/navigate', { href: '/view/MSA/' + rel + '/?in(feature_id,(' + ids.map(encodeURIComponent).join(',') + '))', target: 'blank' });
   });
@@ -108,6 +108,8 @@ define([
     defaultFilter: '',
     store: null,
     apiServer: window.App.dataServiceURL,
+    docsServiceURL: window.App.docsServiceURL,
+    tutorialLink: 'user_guides/',
     queryOptions: null,
     columns: null,
     enableAnchorButton: false,
@@ -337,6 +339,20 @@ define([
         },
         true
       ], [
+        'UserGuide',
+        'fa icon-info-circle fa-2x',
+        {
+          label: 'GUIDE',
+          persistent: true,
+          validTypes: ['*'],
+          tooltip: 'Open User Guide in a new Tab'
+        },
+        function (selection, container) {
+          // console.log('USER GUIDE action', container);
+          window.open(PathJoin(this.docsServiceURL, this.tutorialLink));
+        },
+        true
+      ], [
         'DownloadSelection',
         'fa icon-download fa-2x',
         {
@@ -425,7 +441,10 @@ define([
         },
         function (selection) {
           var sel = selection[0];
-          Topic.publish('/navigate', { href: '/view/Feature/' + sel.feature_id + '#view_tab=overview' });
+          Topic.publish('/navigate', {
+            href: '/view/Feature/' + sel.feature_id + '#view_tab=overview',
+            target: 'blank'
+          });
         },
         false
       ], [
@@ -456,7 +475,6 @@ define([
           }
         },
         function (selection) {
-          var sel = selection[0];
           Topic.publish('/navigate', {
             href: '/view/FeatureList/?in(feature_id,(' + selection.map(function (x) {
               return x.feature_id;
@@ -488,7 +506,10 @@ define([
         },
         function (selection) {
           var sel = selection[0];
-          Topic.publish('/navigate', { href: '/view/Feature/' + sel.feature_id });
+          Topic.publish('/navigate', {
+            href: '/view/Feature/' + sel.feature_id,
+            target: 'blank'
+          });
           // console.log("View SP GENE: ", sel)
           // Topic.publish("/navigate", {href: "/view/SpecialtyGene/" + sel.patric_id});
         },
@@ -659,15 +680,85 @@ define([
           tooltipDialog: viewFASTATT,
           validContainerTypes: ['feature_data', 'spgene_data', 'transcriptomics_gene_data', 'pathway_data']
         },
-        function (selection) {
-          // console.log("view FASTA")
-          viewFASTATT.selection = selection;
-          // console.log("ViewFasta Sel: ", this.selectionActionBar._actions.ViewFASTA.options.tooltipDialog)
-          popup.open({
-            popup: this.selectionActionBar._actions.ViewFASTA.options.tooltipDialog,
-            around: this.selectionActionBar._actions.ViewFASTA.button,
-            orient: ['below']
-          });
+        function (selection, containerWidget) {
+          switch (containerWidget.containerType) {
+            case 'pathway_data':
+              var queryContext = containerWidget.grid.store.state.search;
+              if (containerWidget.grid.store.state.hashParams.filter != 'false') {
+                queryContext += '&' + containerWidget.grid.store.state.hashParams.filter;
+              }
+
+              var self = this;
+              switch (containerWidget.type) {
+                case 'pathway':
+                  var pathway_ids = selection.map(function (d) {
+                    return d.pathway_id;
+                  });
+
+                  when(request.post(this.apiServer + '/pathway/', {
+                    handleAs: 'json',
+                    headers: {
+                      Accept: 'application/json',
+                      'Content-Type': 'application/rqlquery+x-www-form-urlencoded',
+                      'X-Requested-With': null,
+                      Authorization: (window.App.authorizationToken || '')
+                    },
+                    data: 'and(in(pathway_id,(' + pathway_ids.join(',') + ')),' + queryContext + ')&select(feature_id)&limit(25000)'
+                  }), function (response) {
+                    viewFASTATT.selection = response;
+
+                    popup.open({
+                      popup: self.selectionActionBar._actions.ViewFASTA.options.tooltipDialog,
+                      around: self.selectionActionBar._actions.ViewFASTA.button,
+                      orient: ['below']
+                    });
+                  });
+                  break;
+                case 'ec_number':
+                  var ec_numbers = selection.map(function (d) {
+                    return d.ec_number;
+                  });
+
+                  when(request.post(this.apiServer + '/pathway/', {
+                    handleAs: 'json',
+                    headers: {
+                      Accept: 'application/json',
+                      'Content-Type': 'application/rqlquery+x-www-form-urlencoded',
+                      'X-Requested-With': null,
+                      Authorization: (window.App.authorizationToken || '')
+                    },
+                    data: 'and(in(ec_number,(' + ec_numbers.join(',') + ')),' + queryContext + ')&select(feature_id)&limit(25000)'
+                  }), function (response) {
+                    viewFASTATT.selection = response;
+
+                    popup.open({
+                      popup: self.selectionActionBar._actions.ViewFASTA.options.tooltipDialog,
+                      around: self.selectionActionBar._actions.ViewFASTA.button,
+                      orient: ['below']
+                    });
+                  });
+                  break;
+                case 'gene':
+                  viewFASTATT.selection = selection;
+                  popup.open({
+                    popup: self.selectionActionBar._actions.ViewFASTA.options.tooltipDialog,
+                    around: self.selectionActionBar._actions.ViewFASTA.button,
+                    orient: ['below']
+                  });
+                  break;
+                default:
+                  break;
+              }
+              break;
+            default:
+              viewFASTATT.selection = selection;
+              popup.open({
+                popup: this.selectionActionBar._actions.ViewFASTA.options.tooltipDialog,
+                around: this.selectionActionBar._actions.ViewFASTA.button,
+                orient: ['below']
+              });
+              break;
+          }
         },
         false
       ], [
@@ -1099,7 +1190,6 @@ define([
           multiple: true,
           validTypes: ['*'],
           requireAuth: true,
-          max: 50,
           tooltip: 'Share genome(s) with other users',
           validContainerTypes: ['genome_data']
         },

@@ -1,22 +1,23 @@
 <div id="patric-homepage">
 
-    <div class="home-banner">
+    <!-- <div class="home-banner">
         <p class="banner-yellow"> The PATRIC Team is working on a new homepage design, shown below, and we would like hear from you.
             Please <a class="DialogButton" rel="reportProblem:">provide your feedback</a>. You can access the previous homepage <a href="/home-prev/">here</a>.
         </p>
-    </div>
+    </div> -->
 
     <div id="patric-homepage-container">
         <div class="grid-container">
             <div class="browse-search">
                 <h2>BACTERIAL BIOINFORMATICS RESOURCE CENTER</h2>
                 <p>
-                    PATRIC provides integrated data and analysis tools to support biomedical research on bacterial infectious diseases.
+                    PATRIC, the Pathosystems Resource Integration Center, provides integrated data and analysis tools to support biomedical research on bacterial infectious diseases.
                 </p>
                 <div class="browse">
                     <h3>BROWSE</h3>
                     <a href="/view/Taxonomy/2" class="navigationLink btn btn-blue">BACTERIA</a>
                     <a href="/view/Taxonomy/2157" class="navigationLink btn btn-blue">ARCHAEA</a>
+                    <a href="/view/Taxonomy/10239" class="navigationLink btn btn-blue">PHAGES</a>
                     <a href="/view/Host/?eq(taxon_lineage_ids,2759)#view_tab=genomes" class="navigationLink btn btn-blue">EUKARYOTIC HOSTS</a>
                 </div>
                 <div class="search">
@@ -162,7 +163,7 @@
             </div>
 
             <div class="announcements">
-                <h2>ANNOUNCEMENTS</h2>
+                <h2>NEWS &amp; ANNOUNCEMENTS</h2>
                 <ul id="slides"></ul>
                 <div id="dot-navigation"></div>
             </div>
@@ -180,10 +181,15 @@
         <div class="container">
             <div class="column" style="border: 0px;">
                 <div class="wrapper">
-                    <h3 class="close2x">PATRIC</h3>
-                    <p class="close">University of Chicago</p>
-                    <p class="close">5801 South Ellis Avenue</p>
-                    <p>Chicago, IL 60637-5418</p>
+                    <h3 class="close2x">BRC Program</h3>
+                    <ul>
+                        <li><a class="navigationLinkOut" href="https://www.niaid.nih.gov/research/bioinformatics-resource-centers">NIAID</a></li>
+                        <li><a href="https://www.patricbrc.org">PATRIC</a></li>
+                        <li><a class="navigationLinkOut" href="https://www.viprbrc.org/brc/home.spg?decorator=vipr">ViPR</a></li>
+                        <li><a class="navigationLinkOut" href="https://www.fludb.org/brc/home.spg?decorator=influenza">IRD</a></li>
+                        <li><a class="navigationLinkOut" href="https://eupathdb.org/eupathdb/">EuPathDB</a></li>
+                        <li><a class="navigationLinkOut" href="https://www.vectorbase.org/">VectorBase</a></li>
+                    </ul>
                 </div>
             </div>
             <div class="column">
@@ -224,6 +230,7 @@
                             <a href="//www.addthis.com/bookmark.php?v=250&amp;username=xa-4c40660c515875dc">Share This</a>
                         </li>
                     </ul>
+                    <h3 class="close2x"><a href="<%=request.applicationOptions.docsServiceURL %>/website/privacy_policy.html">Privacy Policy</a></h3>
                 </div>
             </div>
         </div>

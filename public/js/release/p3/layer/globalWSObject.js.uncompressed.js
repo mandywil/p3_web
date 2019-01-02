@@ -2051,6 +2051,10 @@
 					 name:"d3"
 				},
 				{
+					 location:"../d3.v5",
+					 name:"d3.v5"
+				},
+				{
 					 location:"../swfobject",
 					 main:"swfobject.js",
 					 name:"swfobject"
@@ -16471,13 +16475,14 @@ define([
     token: '',
     apiUrl: '',
     userId: '',
+
     downloadTypes: ['bam', 'bai', 'bigwig', 'biochemistry', 'contigs', 'csv',
       'de_novo_assembled_transcripts', 'diffexp_experiment', 'diffexp_expression',
       'diffexp_input_data', 'diffexp_input_metadata', 'diffexp_mapping',
-      'diffexp_sample', 'doc', 'docx', 'embl', 'experiment_group', 'fba',
-      'feature_dna_fasta', 'feature_group', 'feature_protein_fasta',
+      'diffexp_sample', 'doc', 'docx', 'embl', 'fba',
+      'feature_dna_fasta', 'feature_protein_fasta',
       'feature_table', 'genbank_file', 'genome', 'genome_annotation_result',
-      'genome_comparison_table', 'genome_group', 'gff', 'gif', 'html', 'jpg',
+      'genome_comparison_table', 'gff', 'gif', 'html', 'jpg',
       'json', 'mapping', 'media', 'model', 'modelfolder', 'model_edit',
       'modeltemplate', 'nwk', 'pdf', 'png', 'ppt', 'pptx', 'proteomics_experiment',
       'reads', 'rxnprobs', 'string', 'svg', 'tar_gz', 'tbi',
@@ -16551,7 +16556,6 @@ define([
         createUploadNodes: createUploadNode,
         overwrite: overwrite
       }]), function (results) {
-        var res;
         if (!results[0][0] || !results[0][0]) {
           throw new Error('Error Creating Object');
         } else {
@@ -16579,6 +16583,11 @@ define([
     },
 
     addToGroup: function (groupPath, idType, ids) {
+      Topic.publish('/Notification', {
+        message: '<span class="default">Adding ' + ids.length +
+        ' item' + (ids.length > 1 ? 's' : '') + '...</span>'
+      });
+
       var _self = this;
       return Deferred.when(this.getObject(groupPath), function (res) {
         if (typeof res.data == 'string') {
@@ -16608,7 +16617,8 @@ define([
           }
           return Deferred.when(_self.updateObject(res.metadata, res.data), function (r) {
             Topic.publish('/Notification', {
-              message: idsFiltered.length + ' unique items added to group ' + groupPath,
+              message: idsFiltered.length + ' unique item' +
+                (!idsFiltered.length || idsFiltered.length > 1 ? 's' : '') + ' added to group ' + groupPath,
               type: 'message'
             });
             return r;
@@ -16645,7 +16655,6 @@ define([
             });
             return r;
           });
-
         }
 
         Topic.publish('/Notification', {
@@ -16686,7 +16695,7 @@ define([
     createFolder: function (paths) {
       var _self = this;
       if (!paths) {
-        throw new Error('Invalid Path(s) to delete');
+        throw new Error('Invalid Path(s) to create');
       }
       if (!(paths instanceof Array)) {
         paths = [paths];
@@ -16821,7 +16830,6 @@ define([
     },
 
     getObjectsByType: function (types, showHidden, specialPath) {
-      var _self = this;
       types = (types instanceof Array) ? types : [types];
       // console.log("Get ObjectsByType: ", types);
 
@@ -16880,7 +16888,7 @@ define([
 
     getObject: function (path, metadataOnly) {
       if (!path) {
-        throw new Error('Invalid Path(s) to delete');
+        throw new Error('Invalid Path(s) to retrieve');
       }
       path = decodeURIComponent(path);
 
@@ -17032,7 +17040,7 @@ define([
         });
 
         if (hiddenFolders.length) {
-          var jobProms = this.moveJobData(hiddenFolders, dest, true /* should move */);
+          this.moveJobData(hiddenFolders, dest, true /* should move */);
 
           Topic.publish('/Notification', {
             message: "<span class='default'>Moving associated job result data...</span>"
@@ -17050,7 +17058,7 @@ define([
           function (res) {
             Topic.publish('/refreshWorkspace', {});
             Topic.publish('/Notification', {
-              message: 'Moved contents of ' + paths.length + (paths.length > 1 ? ' items' : 'item'),
+              message: 'Moved contents of ' + paths.length + (paths.length > 1 ? ' items' : ' item'),
               type: 'message'
             });
             return res;
@@ -17477,7 +17485,7 @@ define([
         label: 'Details',
         // disabled: true,
         onClick: function () {
-          new Dialog({
+          var dlg = new Dialog({
             title: 'Group Comparison',
             style: 'width: 1250px !important; height: 750px !important;',
             onHide: function () {

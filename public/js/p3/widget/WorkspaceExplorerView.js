@@ -16,7 +16,6 @@ define([
     containerType: 'folder',
     onlyWritable: false,      // only lists writable workspaces
     allowDragAndDrop: true,   // whether or not to allow drag and drop
-    showHiddenFiles: false,
     _setTypes: function (val) {
       if (val) {
         this.types = Array.isArray(val) ? val : [val];
@@ -28,11 +27,6 @@ define([
     },
     queryOptions: {
       sort: [{ attribute: 'name', descending: false }]
-    },
-
-    _setShowHiddenFiles: function (val) {
-      this.showHiddenFiles = val;
-      // don't refresh
     },
 
     listWorkspaceContents: function (ws) {
@@ -56,10 +50,9 @@ define([
       }
 
       var filterPublic =  ws == '/';
-      var prom1 = WorkspaceManager.getFolderContents(ws, this.showHiddenFiles, null, filterPublic);
+      var prom1 = WorkspaceManager.getFolderContents(ws, window.App.showHiddenFiles, null, filterPublic);
 
       // if listing user's top level, included 'shared with me' as well
-
       var userID = window.App.user.id;
       var isUserTopLevel = (ws == '/' + userID);
 
@@ -154,7 +147,7 @@ define([
     },
 
     showError: function (err) {
-      var n = domConstr.create('div', {
+      domConstr.create('div', {
         style: {
           position: 'relative',
           zIndex: 999,
@@ -265,7 +258,7 @@ define([
       var exists = query('.emptyFolderNotice', this.domNode)[0];
       if (exists) return;
 
-      var n = domConstr.create('div', {
+      domConstr.create('div', {
         'class': 'emptyFolderNotice',
         style: {
           position: 'relative',
@@ -289,12 +282,21 @@ define([
     initDragAndDrop: function () {
       var self = this;
 
-      // treat explorer view as drag and drop zone
-      this.dndZone = document.getElementsByClassName('WorkspaceExplorerView')[0];
-      this.dndZone.addEventListener('dragover', onDragOver);
-      this.dndZone.addEventListener('dragleave', onDragLeave);
-      this.dndZone.addEventListener('drop', onDragDrop);
+      function onDragLeave(e) {
+        if (e.target.className.indexOf('dnd-active') != -1)
+        { self.dndZone.classList.remove('dnd-active'); }
+      }
 
+      function onDragOver(e) {
+        e.stopPropagation();
+        e.preventDefault();
+
+        // only allow drag and drop in folders
+        if (self.path.split('/').length < 3) return;
+
+        self.dndZone.classList.add('dnd-active');
+        e.dataTransfer.dropEffect = 'copy';
+      }
 
       function upload(files) {
         var uploader = new Uploader();
@@ -364,22 +366,6 @@ define([
         self.dndZone.classList.remove('dnd-active');
       }
 
-      function onDragLeave(e) {
-        if (e.target.className.indexOf('dnd-active') != -1)
-        { self.dndZone.classList.remove('dnd-active'); }
-      }
-
-      function onDragOver(e) {
-        e.stopPropagation();
-        e.preventDefault();
-
-        // only allow drag and drop in folders
-        if (self.path.split('/').length < 3) return;
-
-        self.dndZone.classList.add('dnd-active');
-        e.dataTransfer.dropEffect = 'copy';
-      }
-
       function onDragDrop(e) {
         e.stopPropagation();
         e.preventDefault();
@@ -393,11 +379,17 @@ define([
         var files = e.dataTransfer.files; // Array of all files
         upload(files);
       }
+
+      // treat explorer view as drag and drop zone
+      this.dndZone = document.getElementsByClassName('WorkspaceExplorerView')[0];
+      this.dndZone.addEventListener('dragover', onDragOver);
+      this.dndZone.addEventListener('dragleave', onDragLeave);
+      this.dndZone.addEventListener('drop', onDragDrop);
+
     },
 
     _setPath: function (val) {
       this.path = val;
-      var _self = this;
       // console.log("WorkspaceExplorerView setPath", val)
       if (this._started) {
         this.refreshWorkspace();

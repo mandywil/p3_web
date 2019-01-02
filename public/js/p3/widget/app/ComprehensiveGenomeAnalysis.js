@@ -1,12 +1,12 @@
 define([
-  'dojo/_base/declare', 'dijit/_WidgetBase', 'dojo/_base/lang', 'dojo/_base/Deferred',
+  'dojo/_base/declare', 'dojo/_base/array', 'dijit/_WidgetBase', 'dojo/_base/lang', 'dojo/_base/Deferred',
   'dojo/on', 'dojo/request', 'dojo/dom-class', 'dojo/dom-construct',
   'dojo/text!./templates/ComprehensiveGenomeAnalysis.html', 'dojo/NodeList-traverse', 'dojo/store/Memory',
   'dojox/xml/parser',
   'dijit/popup', 'dijit/TooltipDialog', 'dijit/Dialog',
   './AppBase', '../../WorkspaceManager'
 ], function (
-  declare, WidgetBase, lang, Deferred,
+  declare, array, WidgetBase, lang, Deferred,
   on, xhr, domClass, domConstruct,
   Template, children, Memory,
   xmlParser,
@@ -19,8 +19,11 @@ define([
     pageTitle: 'Comprehensive Genome Analysis Service',
     templateString: Template,
     applicationName: 'ComprehensiveGenomeAnalysis',
+    requireAuth: true,
+    applicationLabel: 'Comprehensive Genome Analysis',
+    applicationDescription: 'The Comprehensive Genome Analysis Service provides a streamlined analysis "meta-service" that accepts raw reads and performs a comprehensive analysis including assembly, annotation, identification of nearest neighbors, a basic comparative analysis that includes a subsystem summary, phylogenetic tree, and the features that distinguish the genome from its nearest neighbors.',
     applicationHelp: 'user_guides/services/comprehensive_genome_analysis_service.html',
-    tutorialLink: 'tutorial/comprehensive_genome_analysis/comprehensive_genome_analysis.html',
+    tutorialLink: 'tutorial/comprehensive-genome-analysis/comprehensive-genome-analysis.html',
     libraryData: null,
     defaultPath: '',
     startingRows: 6,
@@ -33,7 +36,6 @@ define([
 
     constructor: function () {
       this.addedLibs = { counter: 0 };
-      this.addedPairs = 0;
       this.pairToAttachPt = ['read1', 'read2'];
       this.singleToAttachPt = ['single_end_libs'];
       this.libraryStore = new Memory({ data: [], idProperty: '_id' });
@@ -45,15 +47,18 @@ define([
       if (this._started) {
         return;
       }
+      if (this.requireAuth && (window.App.authorizationToken === null || window.App.authorizationToken === undefined)) {
+        return;
+      }
       this.inherited(arguments);
       var _self = this;
       _self.defaultPath = WorkspaceManager.getDefaultFolder() || _self.activeWorkspacePath;
       _self.output_path.set('value', _self.defaultPath);
-      for (i = 0; i < this.startingRows; i++) {
+      for (var i = 0; i < this.startingRows; i++) {
         var tr = this.libsTable.insertRow(0);// domConstr.create("tr",{},this.libsTableBody);
-        var td = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
-        var td2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
-        var td3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
+        domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
+        domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
+        domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, tr);
       }
       this.numlibs.startup();
 
@@ -72,17 +77,11 @@ define([
       // inputs that are NOT needed by the backend
       var not_needed_inputs = ['startWith', 'libdat_file1pair', 'libdat_file2pair', 'libdat_readfile'];
       not_needed_inputs.forEach(function (key) {
-        if (values.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(values, key)) {
           delete values[key];
         }
       });
       if (this.startWithRead.checked) { // start from read file
-        // ???
-        if (typeof String.prototype.startsWith !== 'function') {
-          String.prototype.startsWith = function (str) {
-            return this.slice(0, str.length) == str;
-          };
-        }
         var pairedList = this.libraryStore.query({ _type: 'paired' });
         var singleList = this.libraryStore.query({ _type: 'single' });
         var srrAccessionList = this.libraryStore.query({ _type: 'srr_accession' });
@@ -257,7 +256,7 @@ define([
       }));
       // because its removing rows cells from array needs separate loop
       toDestroy.forEach(lang.hitch(this, function (id) {
-        this.destroyLibRow(query_id = id, '_id');
+        this.destroyLibRow(id, '_id');
       }));
     },
 
@@ -281,7 +280,7 @@ define([
       var lrec = { _type: 'single' };
       var chkPassed = this.ingestAttachPoints(this.singleToAttachPt, lrec);
       if (chkPassed) {
-        infoLabels = {
+        var infoLabels = {
           platform: { label: 'Platform', value: 1 },
           read: { label: 'Read File', value: 1 }
         };
@@ -291,39 +290,30 @@ define([
 
     onAddSRR: function () {
       var accession = this.srr_accession.get('value');
-      // console.log("updateSRR", accession, accession.substr(0, 3))
-      // var prefixList = ['SRR', 'ERR']
-      // if(prefixList.indexOf(accession.substr(0, 3)) == -1){
-      //   this.srr_accession.set("state", "Error")
-      //   return false;
-      // }
 
-      // TODO: validate and populate title
       // SRR5121082
       this.srr_accession.set('disabled', true);
+      this.srr_accession_validation_message.innerHTML = '<br>Validating ' + accession + ' ...';
       xhr.get(lang.replace(this.srrValidationUrl, [accession]), {})
         .then(lang.hitch(this, function (xml_resp) {
-          resp = xmlParser.parse(xml_resp).documentElement;
+          var resp = xmlParser.parse(xml_resp).documentElement;
           this.srr_accession.set('disabled', false);
           try {
-            title = resp.children[0].childNodes[3].innerHTML;
-            this.srr_accession.set('state', '');
+            var title = resp.children[0].childNodes[3].innerHTML;
+            this.srr_accession_validation_message.innerHTML = '';
             var lrec = { _type: 'srr_accession', title: title };
             var chkPassed = this.ingestAttachPoints(['srr_accession'], lrec);
             if (chkPassed) {
-              infoLabels = {
+              var infoLabels = {
                 title: { label: 'Title', value: 1 }
               };
               this.addLibraryRow(lrec, infoLabels, 'srrdata');
             }
           } catch (e) {
-            this.srr_accession.set('state', 'Error');
-            console.debug(e);
+            this.srr_accession_validation_message.innerHTML = '<br>Your input ' + accession + ' is not valid';
+            this.srr_accession.set('value', '');
           }
         }));
-    },
-
-    updateSRR: function () {
     },
 
     destroyLibRow: function (query_id, id_type) {
@@ -335,9 +325,9 @@ define([
         this.decreaseRows(this.libsTable, this.addedLibs, this.numlibs);
         if (this.addedLibs.counter < this.startingRows) {
           var ntr = this.libsTable.insertRow(-1);
-          var ntd = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-          var ntd2 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
-          var ntd3 = domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
+          domConstruct.create('td', { innerHTML: "<div class='emptyrow'></div>" }, ntr);
         }
         obj._handle.remove();
         this.libraryStore.remove(obj._id);
@@ -354,7 +344,7 @@ define([
       var pairToIngest = this.pairToAttachPt;
       var chkPassed = this.ingestAttachPoints(pairToIngest, lrec);
       if (chkPassed) {
-        infoLabels = {
+        var infoLabels = {
           platform: { label: 'Platform', value: 1 },
           read1: { label: 'Read1', value: 1 },
           read2: { label: 'Read2', value: 1 }
@@ -426,18 +416,19 @@ define([
         this.libsTable.deleteRow(-1);
       }
       var handle = on(td2, 'click', lang.hitch(this, function (evt) {
-        this.destroyLibRow(query_id = lrec._id, '_id');
+        this.destroyLibRow(lrec._id, '_id');
       }));
       this.libraryStore.put(lrec);
       lrec._handle = handle;
       this.increaseRows(this.libsTable, this.addedLibs, this.numlibs);
+      this.checkParameterRequiredFields();
     },
 
     // below is from annotation
     changeCode: function (item) {
       this.code_four = false;
       item.lineage_names.forEach(lang.hitch(this, function (lname) {
-        if (dojo.indexOf(this.genera_four, lname) >= 0) {
+        if (array.indexOf(this.genera_four, lname) >= 0) {
           this.code_four = true;
         }
       }));
@@ -447,7 +438,6 @@ define([
     onTaxIDChange: function (val) {
       this._autoNameSet = true;
       var tax_id = this.tax_idWidget.get('item').taxon_id;
-      var sci_name = this.tax_idWidget.get('item').taxon_name;
       // var tax_obj=this.tax_idWidget.get("item");
       if (tax_id) {
         var name_promise = this.scientific_nameWidget.store.get(tax_id);
@@ -480,6 +470,7 @@ define([
       if (current_output_name.length > 0) {
         this.output_nameWidget.set('value', current_output_name.join(' '));
       }
+      this.checkParameterRequiredFields();
     },
 
     onSuggestNameChange: function (val) {
@@ -494,20 +485,42 @@ define([
       this._autoNameSet = false;
     },
 
+    onOutputPathChange: function (val) {
+      this.inherited(arguments);
+      this.checkParameterRequiredFields();
+    },
+
+    checkParameterRequiredFields: function () {
+      if (this.scientific_nameWidget.get('item') && this.myLabelWidget.get('value')
+         && this.output_path.get('value') && this.output_nameWidget.get('displayedValue') ) {
+        this.validate();
+      }
+      else {
+        if (this.submitButton) { this.submitButton.set('disabled', true); }
+      }
+    },
+
+    setContigsFile: function () {
+      this.checkParameterRequiredFields();
+    },
+
     onStartWithChange: function () {
-      if (this.startWithRead.checked) {
+      if (this.startWithRead.checked == true) {
         this.readTable.style.display = 'block';
         this.assemblyStrategy.style.display = 'block';
         this.annotationFileBox.style.display = 'none';
         this.numlibs.constraints.min = 1;
-        this.contigsFile.required = false;
+        this.contigsFile.reset();
+        this.contigsFile.set('required', false);
+        this.checkParameterRequiredFields();
       }
-      if (this.startWithContigs.checked) {
+      if (this.startWithContigs.checked == true) {
         this.readTable.style.display = 'none';
         this.assemblyStrategy.style.display = 'none';
         this.annotationFileBox.style.display = 'block';
         this.numlibs.constraints.min = 0;
-        this.contigsFile.required = true;
+        this.contigsFile.set('required', true);
+        this.checkParameterRequiredFields();
       }
     }
   });

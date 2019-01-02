@@ -1,12 +1,13 @@
 define([
   'dojo/_base/declare', './JobResult', '../../WorkspaceManager',
-  'dojo/_base/Deferred', 'dojo/_base/lang'
-], function (declare, JobResult, WS, Deferred, lang) {
+  'dojo/_base/Deferred', 'dojo/_base/lang', 'dojo/query', 'dojo/dom-attr',
+  'dojo/dom-class', 'dojo/NodeList-traverse'
+], function (declare, JobResult, WS, Deferred, lang, query, domAttr, domClass) {
   return declare([JobResult], {
     containerType: 'Seq',
     streamables: null,
     streamableTypes: ['bam', 'gff', 'vcf.gz', 'bigwig', 'gtf'],
-    downloadableTypes: ['bam', 'gff', 'vcf.gz', 'bigwig', 'gtf', 'bai'],
+    downloadableTypes: ['bam', 'gff', 'vcf.gz', 'bigwig', 'gtf', 'bai', 'tbi'],
     setupResultType: function () {
       if (this.data.autoMeta.app.id) {
         this._resultType = this.data.autoMeta.app.id;
@@ -15,6 +16,15 @@ define([
       this.urls = [];
       this.jbrowseUrl;
       var _self = this;
+
+      // This line is hard to understand.  Basically, we query the dom for all
+      // <div> nodes that have the 'rel' attribute set to 'ViewTracks', we take
+      // the first match ([0]), and then find it's parent container with the
+      // closest() method.
+      this.buttonWrapper = query('div [rel$=\'ViewTracks\']')[0].closest('.ActionButtonWrapper');
+      domClass.toggle(this.buttonWrapper, 'disabled');
+      // console.log('[JobResult.Seq] this.buttonWrapper: (disabled) ', this.buttonWrapper);
+
       this.getDownloadUrlsForFiles().then(function (objs) {
         _self.getJBrowseURLQueryParams();
       });
@@ -55,6 +65,9 @@ define([
       this._resultObjects.forEach(function (o) {
         var name_parts = o.name.split('.');
         var extension = name_parts.pop();
+        if (extension === 'gz') {
+          extension = name_parts.pop() + '.' + extension;
+        }
         if (_self.downloadableTypes.indexOf(o.type) > -1 || _self.downloadableTypes.indexOf(extension) > -1) {
           paths.push(o.path);
           _self._downloadableObjects.push(o);
@@ -100,7 +113,7 @@ define([
                 // console.log('[Seq] object:', o);
                 // console.log('[Seq] partner:', partner);
                 record = {
-                  path:o.url, keyAndLabel:o.name, store:o.id, trackType:jBrowseTrackType, storeType:jBrowseStoreType, baiPath:partner.url
+                  path: o.url, keyAndLabel: o.name, store: o.id, trackType: jBrowseTrackType, storeType: jBrowseStoreType, baiPath: partner.url
                 };
               } catch (err) {
                 // console.log('[Seq] Missing .bai file; no track can be read');
@@ -110,14 +123,14 @@ define([
               jBrowseTrackType = 'JBrowse/Store/BigWig';
               jBrowseStoreType = 'JBrowse/View/Track/Wiggle/XYPlot';
               record = {
-                path:o.url, keyAndLabel:o.name, store:o.id, trackType:jBrowseTrackType, storeType:jBrowseStoreType
+                path: o.url, keyAndLabel: o.name, store: o.id, trackType: jBrowseTrackType, storeType: jBrowseStoreType
               };
               break;
             case 'gff':
               jBrowseStoreType = 'JBrowse/Store/SeqFeature/GFF3';
               jBrowseTrackType = 'JBrowse/View/Track/CanvasFeatures';
               record = {
-                path:o.url, keyAndLabel:o.name, store:o.id, trackType:jBrowseTrackType, storeType:jBrowseStoreType
+                path: o.url, keyAndLabel: o.name, store: o.id, trackType: jBrowseTrackType, storeType: jBrowseStoreType
               };
               break;
             case 'vcf.gz':
@@ -128,7 +141,7 @@ define([
                 // console.log('[Seq] object:', o);
                 // console.log('[Seq] partner:', partner);
                 record = {
-                  path:o.url, keyAndLabel:o.name, store:o.id, trackType:jBrowseTrackType, storeType:jBrowseStoreType, tbiPath:partner.url
+                  path: o.url, keyAndLabel: o.name, store: o.id, trackType: jBrowseTrackType, storeType: jBrowseStoreType, tbiPath: partner.url
                 };
               } catch (err) {
                 // console.log('[Seq] Missing .bai file; no track can be read');
@@ -192,6 +205,9 @@ define([
         + '&tracks=PATRICGenes,RefSeqGenes';
 
       // console.log("[Seq] url params: ", this.jbrowseUrl);
+      domClass.toggle(this.buttonWrapper, 'disabled');
+      // console.log('[JobResult.Seq] this.buttonWrapper: (enabled) ', this.buttonWrapper);
+
       return this.jbrowseUrl;
     }
   });

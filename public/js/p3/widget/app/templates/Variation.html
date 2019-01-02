@@ -2,7 +2,7 @@
   <div class="appTemplate">
     <div class="appTitle">
       <span class="breadcrumb">Services</span>
-      <h3>Variation Analysis
+      <h3>${applicationLabel}
         <div name="overview" class="infobox iconbox infobutton dialoginfo">
           <i class="fa icon-info-circle fa" title="click to open info dialog"></i>
         </div>
@@ -10,7 +10,7 @@
           <i class="fa icon-books fa-1x" title="click to open tutorial"></i>
         </div>
       </h3>
-      <p>The Variation Analysis Service can be used to identify and annotate sequence variations. For further explanation, please see <a href="${docsServiceURL}${applicationHelp}" target="_blank">Variation Analysis Service User Guide</a> and
+      <p>${applicationDescription} For further explanation, please see <a href="${docsServiceURL}${applicationHelp}" target="_blank">${applicationLabel} Service User Guide</a> and
         <a href="${docsServiceURL}${tutorialLink}" target="_blank">Tutorial</a>.
       </p>
     </div>
@@ -94,7 +94,6 @@
                   <option value="BWA-mem">BWA-mem</option>
                   <option value="BWA-mem-strict">BWA-mem-strict</option>
                   <option value="Bowtie2">Bowtie2</option>
-                  <option value="MOSAIK">MOSAIK</option>
                   <option value="LAST">LAST</option>
                 </select>
               </div>
@@ -113,7 +112,7 @@
               </div>
               <div class="appRow">
                 <label class="paramlabel">Output Folder</label><br>
-                <div data-dojo-type="p3/widget/WorkspaceObjectSelector" name="output_path" data-dojo-attach-point="output_path" style="width:300px" required="true" data-dojo-props="type:['folder'],multi:false" data-dojo-attach-event="onChange:onOutputPathChange"></div>
+                <div data-dojo-type="p3/widget/WorkspaceObjectSelector" name="output_path" data-dojo-attach-point="output_path" style="width:300px" required="true" data-dojo-props="title:'Select an Output Folder',autoSelectCurrent:true,selectionText:'Destination',type:['folder'],multi:false" data-dojo-attach-event="onChange:onOutputPathChange"></div>
               </div>
               <div class="appRow">
                 <label class="paramlabel">Output Name</label><span class="charError" style="color:red; font-size:8pt; padding-left:10px; font-weight:bold">&nbsp;</span><br>

@@ -28,16 +28,17 @@ define([
     required: false,
     isSortAlpha: false,
     showUnspecified: false,
-    showHidden: false,
+    showHidden: window.App.showHiddenFiles,
     missingMessage: 'A valid workspace item is required.',
     promptMessage: 'Please choose or upload a workspace item',
     placeHolder: '',
     allowUpload: true,          // whether or not to add the upload button
     uploadingSelection: '',     // uploading in progress, to be copied to selection
     title: 'Choose or Upload a Workspace Object',
-    autoSelectParent: false,    // if true, the folder currently being viewed is selected by default
+    autoSelectCurrent: false,    // if true, the folder currently being viewed is selected by default
     onlyWritable: false,        // only list writable workspaces
     selectionText: 'Selection', // the text used beside "selected" indicator
+    allowUserSpaceSelection: false,   // this allows the user to select /user@patricbrc (for operations such as moving)
     reset: function () {
       this.searchBox.set('value', '');
     },
@@ -62,16 +63,14 @@ define([
       }
     },
     sortAlpha: function () {
-      // console.log('sort me');
+      // but, isSortAlpha is never set to false
+      // it should be possible to toggle instead
       this.isSortAlpha = true;
-      // var wos = document.getElementsByClassName('WorkspaceObjectSelector')[0];
-      // console.log(wos);
-      // console.log(window.App);
-      // console.log(window);
       this.refreshWorkspaceItems();
     },
     _setShowHiddenAttr: function (val) {
       this.showHidden = val;
+      window.App.showHiddenFiles = val;
 
       if (this.grid) {
         this.grid.set('showHiddenFiles', val);
@@ -97,9 +96,14 @@ define([
       }
     },
 
+    // sets path, which is used for the dialog state (not for the dropbox)
     _setPathAttr: function (val) {
+      if (!val) return; // for group selection (hacky)
+
       var self = this;
-      this.path = val;
+
+      // remove trailing '/' in path for consistency
+      this.path = val[val.length - 1] === '/' ? val.substring(0, val.length - 1) : val;
       if (this.grid) {
         this.grid.set('path', val);
       }
@@ -144,12 +148,22 @@ define([
       this.cancelRefresh();
       this.refreshWorkspaceItems();
 
+      // whether or not to allow top level
+      var allowedLevel = this.allowUserSpaceSelection ? true : self.path.split('/').length > 2;
+
       // auto select the current folder if option is given
-      if (this.autoSelectParent) {
+      if (this.autoSelectCurrent && allowedLevel) {
+        var sel = self.sanitizeSelection(self.path);
+
         self.set('selection', {
-          path: self.path,
-          name: self.path.slice(self.path.lastIndexOf('/') + 1)
+          path: sel.path,
+          name: sel.name
         });
+      }
+
+      // if level is not allowed, mark as N/A (dispalying a message)
+      if (this.autoSelectCurrent && !allowedLevel) {
+        self.set('selection', '*N/A*');
       }
 
     },
@@ -162,6 +176,8 @@ define([
       this.cancelRefresh();
       this.refreshWorkspaceItems();
     },
+
+    // sets value of object selector dropdown
     _setValueAttr: function (value, refresh) {
       this.value = value;
       if (this._started) {
@@ -178,15 +194,22 @@ define([
       return this.searchBox.get('value', value);
     },
 
+    // sets selection of object selector form field
     _setSelectionAttr: function (val) {
+      // allowing object selector to be used without form
+      if (!val) return;
 
       this.selection = val;
-      // ensures item is in store (for public workspaces),
+
+      // need to ensure item is in store (for public workspaces),
       // this is more efficient than recursively grabing all public objects of a certain type
-      try {
-        this.store.add(this.selection);
-      } catch (e) {
-        //
+      if (this.selection !== '*none*') {
+        try {
+          this.store.add(this.selection);
+        } catch (e) {
+          // ignore error about duplicates
+          // console.log('error adding ' + this.selection + ' to data store:', e);
+        }
       }
 
       // ensure there is a dom node put selection info in
@@ -194,13 +217,18 @@ define([
 
       // give help text for auto selecting parent folder
       var isCurrentlyViewed = (
-        this.autoSelectParent &&
+        this.autoSelectCurrent &&
           this.type.length == 1 &&
           this.type[0] == 'folder' &&
-          val.name == this.path.slice(val.path.lastIndexOf('/') + 1)
+          val.path == this.path
       );
 
-      if (!val) {
+      if (val == '*N/A*') {
+        this.selValNode.innerHTML =
+          '<span class="selectedDest"><b>' + this.selectionText +
+          ':</b> (you must select a workspace or folder)</span>';
+        this.okButton.set('disabled', true);
+      } else if (!val) {
         this.selValNode.innerHTML =
           '<span class="selectedDest"><b>' + this.selectionText + ':</b> None.</span>';
         this.okButton.set('disabled', true);
@@ -298,7 +326,7 @@ define([
       domConstr.place(createWSBtn, buttonContainer);
       domConstr.place(createFolderBtn, buttonContainer);
 
-      if (this.path.split('/').length <= 3) {
+      if (this.path.split('/').length <= 2) {
         domClass.add(query('[rel="createFolder"]', wrap)[0], 'dijitHidden');
         if (this.allowUpload)
         { domClass.add(query('[rel="upload"]', wrap)[0], 'dijitHidden'); }
@@ -356,11 +384,11 @@ define([
           {
             label: 'Workspaces',
             value: 'mine',
-            selected:  _self.path.split('/')[1] != 'public'
+            selected: _self.path.split('/')[1] != 'public'
           }, {
             label: 'Public Workspaces',
             value: 'public',
-            selected:  _self.path.split('/')[1] == 'public'
+            selected: _self.path.split('/')[1] == 'public'
           }
         ]
       });
@@ -389,7 +417,8 @@ define([
 
       var cbContainer = domConstr.create('div', { style: { 'float': 'left' } });
       domConstr.place(cbContainer, buttonsPane.containerNode, 'last');
-      this.showHiddenWidget = new CheckBox({ value: this.showHidden, checked: this.showHidden });
+      var showHidden = window.App.showHiddenFiles;
+      this.showHiddenWidget = new CheckBox({ value: showHidden, checked: showHidden });
       this.showHiddenWidget.on('change', function (val) {
         _self.set('showHidden', val);
         if (val) {
@@ -423,10 +452,18 @@ define([
       cancelButton.on('click', function () {
         _self.dialog.hide();
       });
-      var okButton = this.okButton = new Button({ label: 'OK' });
+      var okButton = this.okButton = new Button({
+        label: 'OK',
+        disabled: true
+      });
 
       okButton.on('click', function (evt) {
         if (_self.selection) {
+          // if autoSelectCurrent we need to implicitly select current
+          if (_self.autoSelectCurrent) {
+            _self.set('selection', _self.selection);
+          }
+
           _self.set('value', _self.selection.path);
         }
 
@@ -485,9 +522,9 @@ define([
         });
 
         on(uploader.domNode, 'dialogAction', function (evt) {
-          // console.log("Uploader Dialog Action: ", evt);
           if (evt.files && evt.files[0] && evt.action == 'close') {
             var file = evt.files[0];
+
             _self.set('selection', file);
             _self.set('value', file.path, true);
             Deferred.when(_self.dialog.hide(), function () {
@@ -536,7 +573,7 @@ define([
       this._refreshing = WorkspaceManager.getObjectsByType(this.type, true)
         .then(lang.hitch(this, function (items) {
           delete this._refreshing;
-          // console.log('am i here?');
+
           // sort by most recent
           items.sort(function (a, b) {
             return b.timestamp - a.timestamp;
@@ -544,10 +581,9 @@ define([
           this.store = new Memory({ data: items, idProperty: 'path' });
           if (this.isSortAlpha) {
             // sort alphabetically
-            // console.log(this.store.data);
             var dataArr = this.store.data;
             dataArr.sort(compare);
-            // console.log(dataArr);
+
             this.store.data = dataArr;
           }
           this.searchBox.set('store', this.store);
@@ -571,7 +607,7 @@ define([
       if (this._started) {
         return;
       }
-      // console.log("call getObjectsByType(); ", this.type);
+
       this.inherited(arguments);
 
       var _self = this;
@@ -588,19 +624,24 @@ define([
       this.searchBox.set('required', this.required);
       this.searchBox.set('placeHolder', this.placeHolder);
       this.searchBox.labelFunc = this.labelFunc;
-      // console.log(this.searchBox);
+
       // window.App.refreshSelector = this.refreshWorkspaceItems;
     },
 
     labelFunc: function (item, store) {
-      var label = "<div style='font-size:1em; border-bottom:1px solid grey;'>" + '/';
+      var label = '<div style="font-size:1em; border-bottom:1px solid grey;">/';
       var pathParts = item.path.split('/');
-      var workspace = pathParts[2];
+      var workspace = pathParts[2]; // home
+      var firstDir = pathParts[3]; // first level under home or file name
+      var title = pathParts.filter(function (p, idx) { return idx > 1 && idx !== (pathParts.length - 1); }).map(function (p) { return p.replace(/^\./, ''); }).join('/');
       var labelParts = [workspace];
-      if (pathParts.length - 2 > 3) {
+      if (firstDir !== pathParts[pathParts.length - 1]) {
+        labelParts.push(firstDir);
+      }
+      if (pathParts.length - 3 > 3) {
         labelParts.push('...');
       }
-      if (pathParts.length - 2 > 2) {
+      if (pathParts.length - 3 > 2) {
         var parentFolder = pathParts[pathParts.length - 2];
         parentFolder = parentFolder.replace(/^\./, '');
         labelParts.push(parentFolder);
@@ -609,14 +650,13 @@ define([
         var objName = pathParts[pathParts.length - 1];
         labelParts.push(objName);
       }
-      labelParts[labelParts.length - 1] = '</br>' + "<span style='font-size:1.05em; font-weight:bold;'>" + labelParts[labelParts.length - 1] + '</span></div>';
+      labelParts[labelParts.length - 1] = '</br><span style="font-size:1.05em; font-weight:bold;" title="/' + title + '">' + labelParts[labelParts.length - 1] + '</span></div>';
       label += labelParts.join('/');
       return label;
     },
 
     validate: function (/* Boolean */ isFocused) {
       // possibly need to build out refresh function to prevent tricky submissions(see validationtextbox)
-      var message = '';
       var isValid = this.disabled || this.searchBox.isValid(isFocused);
       this._set('state', isValid ? '' : this.searchBox.state);
       this.focusNode.setAttribute('aria-invalid', this.state == 'Error' ? 'true' : 'false');
@@ -628,8 +668,24 @@ define([
 
       return isValid;
     },
+
+    sanitizeSelection: function (path) {
+      var parts = path.split('/');
+      if (parts[parts.length - 1] === '') {
+        parts.pop();
+      }
+
+      var obj = {
+        name: parts[parts.length - 1],
+        path: parts.join('/')
+      };
+
+      return obj;
+    },
+
     createGrid: function () {
       var self = this;
+
 
       var grid =  new Grid({
         region: 'center',
@@ -638,7 +694,7 @@ define([
         deselectOnRefresh: true,
         onlyWritable: self.onlyWritable,
         allowDragAndDrop: false,
-        showHiddenFiles: this.showHidden,
+        showHiddenFiles: window.App.showHiddenFiles,
         types: this.type ? (['folder'].concat(this.type)) : false,
         columns: {
           type: {
@@ -726,32 +782,38 @@ define([
         return false;
       };
 
+
+      // Note: this event also applies to clicking on folder/object icons grid
       grid.on('ItemDblClick', function (evt) {
+        // When navigating to select files, we don't want to select folders.
+        // But, if we are navigating to select (output) folders, we want the value (path)
+        // to be automatically selected (autoSelectCurrent)
         if (evt.item && evt.item.type == 'folder' || evt.item.type == 'parentfolder') {
-          self.set('path', evt.item_path);
+          self.set('path', evt.item.path);
         } else {
-          if (self.selection) {
-            self.set('value', self.selection.path);
-            self.dialog.hide();
-          }
+          self.set('value', evt.item.path);
+          self.dialog.hide();
         }
       });
 
       grid.on('select', function (evt) {
         var row = evt.rows[0];
+
         self.set('selection', row.data);
+        self.set('value', row.data.path);
       });
 
       grid.on('deselect', function (evt) {
-        // This is causing flickering.  Is it really safe to remove it?  Seems to be.
-        // self.set('selection', "");
+        // This (was) causing "none-selected" flickering.
+        self.set('selection', '');
       });
 
+      if (this.autoSelectCurrent) {
+        var sel = self.sanitizeSelection(self.path);
 
-      if (this.autoSelectParent) {
         self.set('selection', {
-          path: self.path,
-          name: self.path.slice(self.path.lastIndexOf('/') + 1)
+          path: sel.path,
+          name: sel.name
         });
       }
 

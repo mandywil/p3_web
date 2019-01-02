@@ -9,7 +9,7 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var packageJSON = require('./package.json');
 var routes = require('./routes/index');
-var prevHome = require('./routes/prevHome');
+// var prevHome = require('./routes/prevHome');
 var users = require('./routes/users');
 var reportProblem = require('./routes/reportProblem');
 var workspace = require('./routes/workspace');
@@ -20,6 +20,7 @@ var contentViewer = require('./routes/content');
 var apps = require('./routes/apps');
 var uploads = require('./routes/uploads');
 var jobs = require('./routes/jobs');
+var systemStatus = require('./routes/systemStatus');
 var help = require('./routes/help');
 var app = express();
 var httpProxy = require('http-proxy');
@@ -44,6 +45,8 @@ app.use(function (req, res, next) {
   req.applicationOptions = {
     version: '3.0',
     gaID: config.get('gaID') || false,
+    probModelSeedServiceURL: config.get('probModelSeedServiceURL'), // for dashboard
+    shockServiceURL: config.get('shockServiceURL'), // for dashboard
     workspaceServiceURL: config.get('workspaceServiceURL'),
     appServiceURL: config.get('appServiceURL'),
     dataServiceURL: config.get('dataServiceURL'),
@@ -109,7 +112,7 @@ app.use('/public/pdfs/', [
 app.use('/patric/', express.static(path.join(__dirname, 'public/patric/')));
 app.use('/public/', express.static(path.join(__dirname, 'public/')));
 app.use('/', routes);
-app.use('/home-prev', prevHome);
+// app.use('/home-prev', prevHome);
 app.post('/reportProblem', reportProblem);
 app.use('/workspace', workspace);
 app.use('/content', contentViewer);
@@ -121,6 +124,7 @@ app.use('/view', viewers);
 app.use('/search', search);
 app.use('/app', apps);
 app.use('/job', jobs);
+app.use('/status', systemStatus);  // system status page
 app.use('/help', help);
 app.use('/uploads', uploads);
 app.use('/users', users);

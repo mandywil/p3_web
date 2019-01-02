@@ -19,6 +19,9 @@ define([
     pageTitle: 'Metagenome Binning Service',
     templateString: Template,
     applicationName: 'MetagenomeBinning',
+    requireAuth: true,
+    applicationLabel: 'Metagenome Binning',
+    applicationDescription: 'The Metagenomic Binning Service accepts either reads or contigs, and attempts to "bin" the data into a set of genomes. This service can be used to reconstruct bacterial and archael genomes from environmental samples.',
     applicationHelp: 'user_guides/services/metagenome_binning_service.html',
     tutorialLink: 'tutorial/metagenomic_binning/metagenomic_binning.html',
     libraryData: null,
@@ -40,6 +43,9 @@ define([
       if (this._started) {
         return;
       }
+      if (this.requireAuth && (window.App.authorizationToken === null || window.App.authorizationToken === undefined)) {
+        return;
+      }
       this.inherited(arguments);
       var _self = this;
       _self.defaultPath = WorkspaceManager.getDefaultFolder() || _self.activeWorkspacePath;
@@ -58,7 +64,7 @@ define([
     getValues: function () {
       // console.log("getValues is called")
 
-      var values = this.inherited(arguments);
+      this.inherited(arguments);
 
       var assembly_values = {};
 
@@ -71,9 +77,9 @@ define([
           }, this);
           break;
 
-        case 'sra':
-          assembly_values.srr_ids = srrAccessions;
-          break;
+        // case 'sra':
+        //   assembly_values.srr_ids = srrAccessions;
+        //   break;
 
         case 'contigs':
           assembly_values.contigs = this.contig.searchBox.value;
@@ -213,17 +219,17 @@ define([
       this.srr_accession.set('disabled', true);
       xhr.get(lang.replace(this.srrValidationUrl, [accession]), {})
         .then(lang.hitch(this, function (xml_resp) {
-          resp = xmlParser.parse(xml_resp).documentElement;
+          var resp = xmlParser.parse(xml_resp).documentElement;
           this.srr_accession.set('disabled', false);
           try {
-            title = resp.children[0].childNodes[3].innerHTML;
+            var title = resp.children[0].childNodes[3].innerHTML;
 
             this.srr_accession.set('state', '');
             var lrec = { _type: 'srr_accession', title: title };
 
             var chkPassed = this.ingestAttachPoints(['srr_accession'], lrec);
             if (chkPassed) {
-              infoLabels = {
+              var infoLabels = {
                 title: { label: 'Title', value: 1 }
               };
               this.addLibraryRow(lrec, infoLabels, 'srrdata');

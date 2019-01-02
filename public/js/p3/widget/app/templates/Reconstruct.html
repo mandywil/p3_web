@@ -2,7 +2,7 @@
   <div class="appTemplate">
     <div class="appTitle">
       <span class="breadcrumb">Services</span>
-      <h3>Reconstruct Metabolic Model
+      <h3>${applicationLabel}
               <div name="overview" class="infobox iconbox infobutton dialoginfo">
                   <i class="fa icon-info-circle fa" title="click to open info dialog"></i>
               </div>
@@ -10,7 +10,7 @@
                 <i class="fa icon-books fa-1x" title="click to open tutorial"></i>
               </div>
             </h3>
-      <p>The Model Reconstruction Service generate draft genome-scale metabolic models. For further explanation, please see <a href="${docsServiceURL}${applicationHelp}" target="_blank">Model Reconstruction Service User Guide</a> and
+      <p>${applicationDescription} For further explanation, please see <a href="${docsServiceURL}${applicationHelp}" target="_blank">${applicationLabel} Service User Guide</a> and
         <a href="${docsServiceURL}${tutorialLink}" target="_blank">Tutorial</a>.
       </p>
     </div>
@@ -81,7 +81,7 @@
         <div class="appRow">
           <div class="appField">
             <label>Output Folder</label>
-            <div data-dojo-attach-point="output_pathWidget" data-dojo-type="p3/widget/WorkspaceObjectSelector" name="output_path" style="width:100%" required="true" data-dojo-props="type:['folder'],multi:false,value:'${activeWorkspacePath}',workspace:'${activeWorkspace}',promptMessage:'The output folder for your Reconstruction Results',missingMessage:'Output Folder must be selected.'"
+            <div data-dojo-attach-point="output_pathWidget" data-dojo-type="p3/widget/WorkspaceObjectSelector" name="output_path" style="width:100%" required="true" data-dojo-props="title:'Select an Output Folder',autoSelectCurrent:true,selectionText:'Destination',type:['folder'],multi:false,value:'${activeWorkspacePath}',workspace:'${activeWorkspace}',promptMessage:'The output folder for your Reconstruction Results',missingMessage:'Output Folder must be selected.'"
               data-dojo-attach-event="onChange:onOutputPathChange"></div>
             <label>Output Name</label><span class="charError" style="color:red; font-size:8pt; padding-left:10px; font-weight:bold">&nbsp;</span><br>
             <div data-dojo-type="p3/widget/WorkspaceFilenameValidationTextBox" data-dojo-attach-event="onChange:checkOutputName" name="output_file" data-dojo-attach-point="output_file" style="width:85%" required="true" data-dojo-props="intermediateChanges:true,missingMessage:'Name must be provided for the job result',trim:true,placeHolder:'Output Name'"></div>

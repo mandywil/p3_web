@@ -21,6 +21,8 @@ define([
     state: null,
     genome_ids: null,
     searchName: null,
+    docsServiceURL: window.App.docsServiceURL,
+    tutorialLink: 'user_guides/organisms_taxon/overview.html',
 
     _setStateAttr: function (state) {
       this._set('state', state);
@@ -76,7 +78,7 @@ define([
 
       var wikiApiUrl = 'https://en.wikipedia.org/w/api.php';
 
-      var token = '?action=centralauthtoken&format=json';
+      // var token = '?action=centralauthtoken&format=json';
       var query = '?action=query&prop=extracts&exintro=&format=json&titles=';
 
       var origin = '&origin=' + window.location.origin;
@@ -95,6 +97,10 @@ define([
           console.log('response: ', response);
         });
       }
+    },
+
+    onClickUserGuide: function () {
+      window.open(PathJoin(this.docsServiceURL, this.tutorialLink));
     },
 
     startup: function () {

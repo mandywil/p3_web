@@ -13,8 +13,8 @@
  *
  *  var editor = PermissionEditor({
  *    path: 'my/object',
- *    owner_id: user@patricbrc.org
- *  })
+ *    user: user@patricbrc.org
+*  })
  *  editor.onConfirm = function(){ //do something }
  *  editor.show()
  *
@@ -127,7 +127,7 @@ define("p3/widget/PermissionEditor", [
       /**
        * Build the form and events
        */
-      var ownerId = Formatter.baseUsername(this.user);
+      // var ownerId = Formatter.baseUsername(this.user);
 
       var form = self.form = domConstruct.toDom('<div class="userPermForm">');
       domConstruct.place(
@@ -178,7 +178,7 @@ define("p3/widget/PermissionEditor", [
         label: '<i class="icon-plus"></i> Add User',
         onClick: function () {
           var user = userSelector.getSelected();
-          perm = newPermSelect.attr('value');
+          var perm = newPermSelect.attr('value');
 
           if (!user) return;
 
@@ -227,11 +227,7 @@ define("p3/widget/PermissionEditor", [
         content: form,
         style: { width: '500px' },
         onConfirm: function (evt) {
-          self.onConfirm(self._userPerms);
-        },
-
-        onCancel: function (evt) {
-          self.onCancel();
+          self.onConfirm(self._userPerms, self.isPublic ? 'r' : 'n');
         }
       });
       this.dialog.okButton.set('disabled', true);
@@ -252,9 +248,9 @@ define("p3/widget/PermissionEditor", [
       * list solr (initial) permissions in dom
     */
     listSolrPermissions: function () {
-      var self = this,
-        form = self.form,
-        selection = this.selection;
+      var self = this;
+      // var form = self.form;
+      var selection = this.selection;
 
       /**
        * not yet allowing publication
@@ -375,8 +371,7 @@ define("p3/widget/PermissionEditor", [
     */
     listWSPermissions: function () {
       var self = this,
-        form = self.form,
-        folderPath = this.selection.path;
+        form = self.form;
 
 
       var perms = this.permissions;
@@ -385,22 +380,20 @@ define("p3/widget/PermissionEditor", [
         return p[0] == 'global_permission';
       })[0][1];
 
-      var isPublic = globalPerm != 'n';
+      self.isPublic = globalPerm != 'n';
 
       var checkBox = domConstruct.toDom('<div class="publicCheckBox">');
       var cb = new CheckBox({
         name: 'checkBox',
         value: 'isPublic',
-        checked: isPublic,
-        onChange: function (e) {
-          var prom = WorkspaceManager.setPublicPermission(folderPath, isPublic ? 'n' : 'r');
-          Deferred.when(prom, function (res) {
-          }, function (e) {
-            alert('oh no, "Public" permission could not be set.');
-          });
+        checked: self.isPublic,
+        onChange: function (isChecked) {
+          self.isPublic = isChecked;
+          self.dialog.okButton.set('disabled', false);
         }
       });
       cb.placeAt(checkBox);
+
       checkBox.appendChild(domConstruct.create('label', {
         'for': 'publicCB',
         'innerHTML': ' Publicly Readable'
